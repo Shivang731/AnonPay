@@ -1,0 +1,121 @@
+import React from 'react';
+import { CheckCircle, Key, Terminal } from 'lucide-react';
+import { GlassCard } from '../../../components/ui/GlassCard';
+import { DeveloperCodeBlock } from './DeveloperCodeBlock';
+import { DeveloperStepCard } from './DeveloperStepCard';
+
+export const QuickStartGuide: React.FC = () => {
+    return (
+        <div className="space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                <DeveloperStepCard step="01" title="Install SDK" desc="Use the official Node client in your merchant backend." icon={Terminal} />
+                <DeveloperStepCard step="02" title="Create Session" desc="Call the SDK from your backend route when the buyer starts checkout." icon={Key} />
+                <DeveloperStepCard step="03" title="Verify And Fulfill" desc="Retrieve the session or wait for the webhook before fulfillment." icon={CheckCircle} />
+            </div>
+
+            <GlassCard className="p-8 md:p-10">
+                <span className="text-[11px] uppercase tracking-[0.25em] text-gray-500 font-semibold">Quick Start</span>
+                <h2 className="text-3xl font-bold tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-orange-400 via-orange-300 to-orange-500 drop-shadow-[0_0_15px_rgba(249,115,22,0.3)] mt-3 mb-2">Backend Integration In 3 Steps</h2>
+                <p className="text-gray-400 text-sm leading-relaxed mb-8">
+                    This is the same flow the demo merchant backend uses: your server creates the checkout session, the buyer is redirected to AnonPay hosted checkout, and your backend verifies settlement afterwards.
+                </p>
+                <div className="mb-8 rounded-2xl border border-orange-400/20 bg-orange-500/10 px-5 py-4 text-left">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-orange-300 mb-2">
+                        Relayer Highlight
+                    </p>
+                    <p className="text-sm text-white/80 leading-relaxed">
+                        AnonPay also has a relayer-backed setup path for invoices. In the CLI and Node SDK fallback flow, AnonPay submits the invoice-creation transaction on behalf of the merchant and covers that network fee from the relayer wallet.
+                    </p>
+                </div>
+
+                <DeveloperCodeBlock
+                    title="1. Install And Initialize"
+                    code={`import { AnonPay } from '@anonpay/node';
+
+const anonpay = new AnonPay({
+  secretKey: process.env.ANONPAY_SECRET_KEY!,
+  baseURL: 'https://anonpay-backend-ib5q4.ondigitalocean.app/api', // optional override
+  projectRoot: __dirname, // recommended on Vercel/serverless
+  configPath: path.join(__dirname, 'anonpay.json'),
+});`}
+                />
+
+                <DeveloperCodeBlock
+                    title="2. Create A Checkout Route"
+                    code={`app.post('/api/checkout/variable', async (req, res) => {
+  const { currency, price, tokens } = req.body;
+
+  const session = await anonpay.checkout.sessions.create({
+    amount: price,
+    currency,
+    success_url: \`https://yoursite.com/success?session_id={CHECKOUT_SESSION_ID}&tokens=\${tokens}\`,
+    cancel_url: 'https://yoursite.com/cart',
+  });
+
+  res.json({ checkoutUrl: session.checkout_url });
+});`}
+                />
+
+                <DeveloperCodeBlock
+                    title="3. Verify On Success"
+                    code={`app.get('/success', async (req, res) => {
+  const sessionId = req.query.session_id as string;
+  const session = await anonpay.checkout.sessions.retrieve(sessionId);
+
+  if (session.status !== 'SETTLED') {
+    return res.status(409).send('Payment not settled yet');
+  }
+
+  // safe to fulfill here
+  res.send('Order confirmed');
+});`}
+                />
+            </GlassCard>
+
+            <GlassCard className="p-8 md:p-10">
+                <h3 className="text-2xl font-bold text-gradient-gold drop-shadow-gold mb-3">Using anonpay.json (Pre-Generated Invoices)</h3>
+                <p className="text-gray-400 text-sm leading-relaxed mb-6">
+                    For multi-pay or donation-style flows, the best practice is to pre-generate your invoices and store them in a <code className="text-white bg-white/5 py-0.5 px-1.5 rounded">anonpay.json</code> file at the root of your backend project.
+                    The <code className="text-neon-primary bg-white/5 py-0.5 px-1.5 rounded">@anonpay/node</code> SDK automatically reads this file!
+                    There are two ways to create your <code className="text-white bg-white/5 py-0.5 px-1.5 rounded">anonpay.json</code>:
+                </p>
+                <p className="text-gray-300 text-sm leading-relaxed mb-6">
+                    <span className="text-gradient-gold drop-shadow-gold font-semibold">anonpay.json is optional</span>; use it for named pre-generated invoices, or skip it and create sessions directly with <code className="text-white bg-white/5 py-0.5 px-1.5 rounded">amount</code>, <code className="text-white bg-white/5 py-0.5 px-1.5 rounded">currency</code>, and <code className="text-white bg-white/5 py-0.5 px-1.5 rounded">type</code>.
+                </p>
+                <div className="mb-6 rounded-2xl border border-orange-400/20 bg-orange-500/10 px-5 py-4 text-left">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-orange-300 mb-2">
+                        Serverless Note
+                    </p>
+                    <p className="text-sm text-white/80 leading-relaxed">
+                        On Vercel or similar serverless runtimes, pass <code className="text-white bg-white/5 py-0.5 px-1.5 rounded">projectRoot</code> and <code className="text-white bg-white/5 py-0.5 px-1.5 rounded">configPath</code> into <code className="text-neon-primary bg-white/5 py-0.5 px-1.5 rounded">new AnonPay()</code> so the SDK resolves <code className="text-white bg-white/5 py-0.5 px-1.5 rounded">anonpay.json</code> from the exact backend folder instead of relying on <code className="text-white bg-white/5 py-0.5 px-1.5 rounded">process.cwd()</code>.
+                    </p>
+                </div>
+                <div className="space-y-4 mb-8">
+                    <div className="p-5 bg-white/[0.02] border border-white/[0.06] rounded-xl">
+                        <h4 className="text-gradient-gold drop-shadow-gold font-bold mb-2">1. Automatic Generation (Recommended)</h4>
+                        <p className="text-gray-400 text-sm">Run our interactive CLI wizard: <code className="text-white bg-white/5 py-0.5 px-1.5 rounded">npx @anonpay/cli@latest sdk onboard</code>. It handles generating salts, submitting to the Midnight relayer, resolving the invoice hashes on the network, and writing the final <code className="text-white bg-white/5 py-0.5 px-1.5 rounded">anonpay.json</code> file for you. That invoice-creation step is relayed by AnonPay, so the merchant does not need to manually broadcast the setup transaction.</p>
+                    </div>
+                    <div className="p-5 bg-white/[0.02] border border-white/[0.06] rounded-xl">
+                        <h4 className="text-gradient-gold drop-shadow-gold font-bold mb-2">2. Manual Fallback</h4>
+                        <p className="text-gray-400 text-sm">If you don't want to use the CLI, you can manually interact with the AnonPay smart contract, generate your own hashes and salts, and create a <code className="text-white bg-white/5 py-0.5 px-1.5 rounded">anonpay.json</code> file matching the schema yourself.</p>
+                    </div>
+                </div>
+
+                <p className="text-gray-400 text-sm leading-relaxed mb-6">
+                    Once the file is in your root directory, you can create a checkout session by simply passing the name of the invoice. The SDK intrinsically auto-fetches the amount, currency, type, hash, and salt for you!
+                </p>
+
+                <DeveloperCodeBlock
+                    title="Auto-fetching from anonpay.json"
+                    code={`const session = await anonpay.checkout.sessions.create({
+  invoice_name: 'pro-plan', // Auto-merges hash, salt, amount, and currency.
+  success_url: 'https://yoursite.com/success?session_id={CHECKOUT_SESSION_ID}',
+  cancel_url: 'https://yoursite.com/cancel',
+});`}
+                />
+            </GlassCard>
+        </div>
+    );
+};
+
+export default QuickStartGuide;

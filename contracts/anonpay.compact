@@ -1,0 +1,152 @@
+pragma language_version >= 0.22;
+
+import CompactStandardLibrary;
+
+export enum InvoiceStatus {
+  PENDING,
+  PAID,
+  EXPIRED,
+  CLAIMED,
+}
+
+struct Invoice {
+  invoice_hash: Bytes<32>,
+  expiry: Uint<64>,
+  amount: Uint<64>,
+  status: InvoiceStatus,
+  payer_commitment: Bytes<32>,
+}
+
+export ledger invoice_counter: Counter;
+export ledger invoices: Map<Uint<64>, Invoice>;
+export ledger nullifiers: Set<Bytes<32>>;
+export ledger round: Counter;
+
+constructor() {
+  invoice_counter.resetToDefault();
+  nullifiers.resetToDefault();
+  round.resetToDefault();
+}
+
+pure circuit computeCommitment(
+  round_val: Field,
+  sk: Bytes<32>,
+  nonce: Bytes<32>,
+): Bytes<32> {
+  return persistentHash<Vector<4, Bytes<32>>>(
+    [pad(32, "anonpay:commitment"), round_val as Bytes<32>, sk, nonce]
+  );
+}
+
+pure circuit computeNullifier(
+  sk: Bytes<32>,
+  invoice_hash: Bytes<32>,
+): Bytes<32> {
+  return persistentHash<Vector<3, Bytes<32>>>(
+    [pad(32, "anonpay:nullifier"), sk, invoice_hash]
+  );
+}
+
+export circuit create_invoice(
+  invoice_hash: Bytes<32>,
+  expiry: Uint<64>,
+  amount: Uint<64>,
+): Uint<64> {
+  const d_hash = disclose(invoice_hash);
+  const d_expiry = disclose(expiry);
+  const d_amount = disclose(amount);
+
+  assert(
+    blockTimeLt(d_expiry),
+    "Invoice expiry must be in the future"
+  );
+
+  const id = invoice_counter.read();
+  const inv = Invoice {
+    invoice_hash: d_hash,
+    expiry: d_expiry,
+    amount: d_amount,
+    status: InvoiceStatus.PENDING,
+    payer_commitment: default<Bytes<32>>,
+  };
+  invoices.insert(id, inv);
+  invoice_counter.increment(1);
+
+  return id;
+}
+
+export circuit pay_invoice(
+  invoice_id: Uint<64>,
+  secretKey: Bytes<32>,
+  payerNonce: Bytes<32>,
+): [] {
+  const d_id = disclose(invoice_id);
+
+  assert(invoices.member(d_id), "Invoice does not exist");
+
+  const inv = invoices.lookup(d_id);
+  assert(inv.status == InvoiceStatus.PENDING, "Invoice is not pending");
+  assert(
+    blockTimeLt(inv.expiry),
+    "Invoice has expired"
+  );
+
+  const commitment = computeCommitment(round.read() as Field, secretKey, payerNonce);
+  const nul = computeNullifier(secretKey, inv.invoice_hash);
+
+  const d_nul = disclose(nul);
+  const d_commitment = disclose(commitment);
+
+  assert(!nullifiers.member(d_nul), "Invoice already paid (nullifier reused)");
+
+  const updated_inv = Invoice {
+    invoice_hash: inv.invoice_hash,
+    expiry: inv.expiry,
+    amount: inv.amount,
+    status: InvoiceStatus.PAID,
+    payer_commitment: d_commitment,
+  };
+  invoices.insert(d_id, updated_inv);
+  nullifiers.insert(d_nul);
+  round.increment(1);
+}
+
+export circuit generate_disclosure_proof(
+  invoice_id: Uint<64>,
+  secretKey: Bytes<32>,
+  reveal_amount: Boolean,
+): [Bytes<32>, Uint<64>] {
+  const d_id = disclose(invoice_id);
+  const d_reveal = disclose(reveal_amount);
+
+  assert(invoices.member(d_id), "Invoice does not exist");
+
+  const inv = invoices.lookup(d_id);
+  assert(inv.status == InvoiceStatus.PAID, "Invoice is not paid");
+
+  const nul = computeNullifier(secretKey, inv.invoice_hash);
+  const d_nul = disclose(nul);
+  assert(nullifiers.member(d_nul), "Invalid nullifier for this invoice");
+
+  const d_hash = disclose(inv.invoice_hash);
+  const amount_to_reveal = d_reveal ? inv.amount : 0;
+
+  return [d_hash, amount_to_reveal];
+}
+
+export circuit get_invoice_status(
+  invoice_id: Uint<64>,
+): InvoiceStatus {
+  const d_id = disclose(invoice_id);
+
+  assert(invoices.member(d_id), "Invoice does not exist");
+
+  const inv = invoices.lookup(d_id);
+
+  const is_pending = inv.status == InvoiceStatus.PENDING;
+  const is_expired = blockTimeGt(inv.expiry);
+
+  return is_pending && is_expired
+    ? InvoiceStatus.EXPIRED
+    : inv.status;
+}

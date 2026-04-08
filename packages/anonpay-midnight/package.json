@@ -1,0 +1,9 @@
+{
+  "name": "@anonpay/midnight",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "description": "Midnight-first helpers for AnonPay contract and checkout integrations."
+}
