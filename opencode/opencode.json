@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "midnight": {
-      "command": "npx",
-      "args": ["-y", "midnight-mcp@latest"]
-    }
-  }
-}
