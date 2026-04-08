@@ -9,7 +9,7 @@ import {
     Sparkles,
 } from 'lucide-react';
 
-const STORAGE_KEY = 'anonpay_changelog_wave4';
+const STORAGE_KEY = 'anonpay_intro_seen';
 
 const overlayVariants = {
     hidden: { opacity: 0 },
@@ -36,9 +36,6 @@ const itemVariants = {
         transition: { delay: i * 0.06 + 0.18, duration: 0.36 }
     })
 };
-
-const codeClass =
-    'text-[11px] text-orange-300/90 bg-orange-500/8 border border-orange-400/15 px-1.5 py-0.5 rounded-md font-mono';
 
 const SectionCard = ({
     index,
@@ -140,15 +137,15 @@ export const ChangelogOverlay: React.FC = () => {
                         <div className="p-8 pb-5 shrink-0 relative z-10">
                             <div className="flex items-center gap-2.5 mb-5">
                                 <span className="px-3 py-1 bg-orange-500/10 border border-orange-400/20 rounded-full text-[9px] font-black text-orange-300 uppercase tracking-[0.28em]">
-                                    Wave 4
+                                    Welcome
                                 </span>
                                 <span className="text-white/15 text-xs">·</span>
                                 <span className="text-[9px] font-semibold text-white/35 uppercase tracking-[0.28em]">
-                                    March 2026
+                                    AnonPay
                                 </span>
                                 <span className="text-white/15 text-xs">·</span>
                                 <span className="text-[9px] font-semibold text-white/35 uppercase tracking-[0.28em]">
-                                    Platform Notes
+                                    Private Payments
                                 </span>
                             </div>
                             <motion.h2
@@ -161,7 +158,7 @@ export const ChangelogOverlay: React.FC = () => {
                                     AnonPay
                                 </span>
                                 <br />
-                                <span className="text-white/50 font-light text-2xl md:text-3xl tracking-normal">Expansion — Wave&nbsp;4</span>
+                                <span className="text-white/50 font-light text-2xl md:text-3xl tracking-normal">Private invoices with selective disclosure</span>
                             </motion.h2>
                         </div>
 
@@ -173,100 +170,98 @@ export const ChangelogOverlay: React.FC = () => {
                                 accentClass="bg-emerald-400/10 border-emerald-300/20 text-emerald-200"
                                 icon={<ShieldCheck className="w-5 h-5" />}
                                 glowClass="bg-emerald-400/35"
-                                title="100% User-Controlled Password Encryption"
+                                title="Privacy By Default"
                             >
                                 <p>
-                                    All sensitive data, including burner wallets, is now encrypted entirely client-side using a <b>password provided by you</b>. 
+                                    AnonPay lets merchants create invoices and accept payments without exposing wallet balances, counterparties, or transaction history to the public.
                                 </p>
-                                <ul className="text-xs text-gray-400 space-y-1.5 mt-2">
-                                    <li>- Uses PBKDF2 key derivation and AES-GCM encryption.</li>
-                                    <li>- The resulting encrypted payload is safely backed up on-chain as a private record.</li>
-                                    <li>- AnonPay never sees your raw keys or password.</li>
-                                </ul>
+                                <p>
+                                    Sensitive invoice metadata stays off the public ledger, while commitment-based verification keeps the payment flow tamper-evident.
+                                </p>
                             </SectionCard>
 
                             <SectionCard
                                 index={1}
-                                eyebrow="AI & Tooling"
-                                badge="New Package"
+                                eyebrow="Selective Disclosure"
+                                badge="Core Feature"
                                 accentClass="bg-orange-400/10 border-orange-300/20 text-orange-200"
                                 icon={<Bot className="w-5 h-5" />}
                                 glowClass="bg-orange-400/35"
-                                title="AnonPay MCP Server & Context-Aware NullBot"
+                                title="Reveal Only What Matters"
                             >
                                 <p>
-                                    We shipped the <span className={codeClass}>@anonpay/mcp</span> server, allowing AI clients to natively create invoices, inspect flows, and execute payments. 
+                                    Privacy does not have to mean total opacity. AnonPay is designed so merchants can prove specific financial facts without revealing everything else.
                                 </p>
                                 <p>
-                                    Meanwhile, the in-app <b>NullBot</b> now possesses route-specific context. On the dashboard, it acts as a live merchant copilot with access to your real-time balances and invoice metrics.
+                                    That means sharing settlement status, revenue windows, or summary totals with banks, auditors, or tax authorities without exposing raw customer-level history.
                                 </p>
                             </SectionCard>
 
                             <SectionCard
                                 index={2}
-                                eyebrow="SDK + CLI"
-                                badge="Expanded"
+                                eyebrow="Payments"
+                                badge="Shielded"
                                 accentClass="bg-white/[0.05] border-white/10 text-white/85"
                                 icon={<FileCode2 className="w-5 h-5" />}
                                 glowClass="bg-white/20"
-                                title="Powerful Invoice Manifests via anonpay.json"
+                                title="Built For Real Merchant Flows"
                             >
                                 <p>
-                                    The <span className={codeClass}>@anonpay/node</span> SDK now handles local <span className={codeClass}>anonpay.json</span> manifests, making it easy to create hosted checkout sessions without hardcoding cryptographic IDs.
+                                    AnonPay supports standard invoices, donation-style links, and multi-party payment flows so creators, freelancers, and businesses can accept crypto without turning their finances into public intel.
                                 </p>
                                 <p>
-                                    The new <span className={codeClass}>@anonpay/cli</span> automates onboarding by generating salts, submitting invoices to the relayer, and writing the final manifest into your project.
+                                    Hosted checkout, merchant dashboards, receipts, and payment verification are all shaped around privacy-first commerce rather than generic wallet transfers.
                                 </p>
                             </SectionCard>
 
                             <SectionCard
                                 index={3}
                                 eyebrow="Infrastructure"
-                                badge="Delegated"
+                                badge="Midnight"
                                 accentClass="bg-purple-400/10 border-purple-300/20 text-purple-200"
                                 icon={<Sparkles className="w-5 h-5" />}
                                 glowClass="bg-purple-400/25"
-                                title="Delegated Proving & Fee Sponsorship"
+                                title="Built Around Private Execution"
                             >
                                 <p>
-                                    We introduced a backend-sponsored execution endpoint (<span className={codeClass}>/api/dps/sponsor-sweep</span>) to significantly reduce direct wallet dependency. 
+                                    AnonPay is built around Midnight’s privacy model, combining on-chain commitments with encrypted off-chain metadata and proof-driven verification.
                                 </p>
                                 <p>
-                                    Users authorize the actions locally, but AnonPay handles the proving and relays the fees. This powers frictionless gift card redemptions and burner sweeps while remaining strictly non-custodial.
+                                    The result is a payment stack where privacy is part of the protocol, not a patch layered on after the fact.
                                 </p>
                             </SectionCard>
 
                             <SectionCard
                                 index={4}
-                                eyebrow="Gift Cards"
-                                badge="Full Flow"
+                                eyebrow="Compliance"
+                                badge="Practical"
                                 accentClass="bg-pink-400/10 border-pink-300/20 text-pink-200"
                                 icon={<Gift className="w-5 h-5" />}
                                 glowClass="bg-pink-400/25"
-                                title="A Complete Private Value-Transfer Ecosystem"
+                                title="Privacy That Still Works In The Real World"
                             >
                                 <p>
-                                    Gift cards are being migrated to Midnight. Coming soon with tDUST support.
+                                    The goal is straightforward: merchants should be able to stay private by default, then disclose only the minimum necessary when the real world demands proof.
                                 </p>
                                 <p>
-                                    You can even pay standard or donation invoices <b>directly</b> using a loaded gift card, utilizing the sponsored DPS route for a seamless checkout.
+                                    That makes AnonPay useful not just for receiving payments, but for financing, reporting, and trust-sensitive business relationships.
                                 </p>
                             </SectionCard>
 
                             <SectionCard
                                 index={5}
                                 eyebrow="Checkout"
-                                badge="Realtime"
+                                badge="Simple"
                                 accentClass="bg-cyan-400/10 border-cyan-300/20 text-cyan-200"
                                 icon={<Radio className="w-5 h-5" />}
                                 glowClass="bg-cyan-400/20"
-                                title="Zero-Config Realtime Hosted Checkout"
+                                title="Create, Share, Verify"
                             >
                                 <p>
-                                    Standard hosted invoices now surface live payment statuses immediately. 
+                                    Connect your wallet, create an invoice, share the payment link, and let the recipient verify that the invoice is authentic before they pay.
                                 </p>
                                 <p>
-                                    By combining Supabase realtime listeners with aggressive polling fallbacks, the checkout session auto-settles the moment a payment lands on-chain—no custom websocket servers required on your backend.
+                                    From there, AnonPay handles settlement tracking, receipts, and merchant-side visibility without making your financial graph public.
                                 </p>
                             </SectionCard>
                         </div>
@@ -276,7 +271,7 @@ export const ChangelogOverlay: React.FC = () => {
                                 onClick={() => handleClose(false)}
                                 className="text-[12px] text-white/30 hover:text-white/70 transition-colors font-medium px-3 py-2 rounded-lg hover:bg-white/[0.04] tracking-wide"
                             >
-                                Remind me later
+                                Close
                             </button>
 
                             <button
@@ -286,7 +281,7 @@ export const ChangelogOverlay: React.FC = () => {
                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                                 </svg>
-                                Got it, don't show again
+                                Enter AnonPay
                             </button>
                         </div>
                     </motion.div>
