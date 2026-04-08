@@ -18,22 +18,22 @@ interface DocsChatbotProps {
 }
 
 const QUICK_PROMPTS_DOCS = [
-    'How do I install the Node SDK?',
-    'What tokens does AnonPay support?',
-    'Explain how Webhooks work.',
-    'Give me a cURL example for creating an invoice.',
+    'What does the current MVP include?',
+    'Explain the invoice workflow.',
+    'How do webhooks work?',
+    'What is the current contract scope?',
 ];
 
 const QUICK_PROMPTS_DEV = [
     'How do I get my Secret Key as a merchant?',
-    'Show me how to initialize AnonPay in my backend.',
+    'How do I create a hosted checkout flow?',
     'What happens if my webhook fails?',
-    'How do I verify a payment hash on-chain?',
+    'What can developers integrate today?',
 ];
 
-const INITIAL_MSG_DOCS = 'Hello! I am NullBot, your Documentation Assistant. I can help you navigate the AnonPay technical docs, explain APIs, SDKs, and Smart Contracts. What are you looking for?';
+const INITIAL_MSG_DOCS = 'Hello! I am the AnonPay documentation assistant. I can help you navigate the current MVP docs, workflow, backend routes, and contract scope. What do you want to understand?';
 
-const INITIAL_MSG_DEV = 'Hello! I am NullBot, your Developer Portal Assistant. I can help you with Secret Keys, Webhook configuration, and integrating the SDK into your backend. What are you building today?';
+const INITIAL_MSG_DEV = 'Hello! I am the AnonPay developer assistant. I can help with merchant registration, secret keys, hosted checkout, and webhook setup for the current MVP. What are you building today?';
 
 const TruncatedHashComponent = ({ children, className }: any) => {
     const [copied, setCopied] = useState(false);

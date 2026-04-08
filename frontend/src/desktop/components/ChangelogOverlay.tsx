@@ -158,7 +158,7 @@ export const ChangelogOverlay: React.FC = () => {
                                     AnonPay
                                 </span>
                                 <br />
-                                <span className="text-white/50 font-light text-2xl md:text-3xl tracking-normal">Private invoices with selective disclosure</span>
+                                <span className="text-white/50 font-light text-2xl md:text-3xl tracking-normal">Private invoicing MVP on Midnight</span>
                             </motion.h2>
                         </div>
 
@@ -173,10 +173,10 @@ export const ChangelogOverlay: React.FC = () => {
                                 title="Privacy By Default"
                             >
                                 <p>
-                                    AnonPay lets merchants create invoices and accept payments without exposing wallet balances, counterparties, or transaction history to the public.
+                                    AnonPay lets merchants create invoices and receive payments in a workflow designed to reduce unnecessary public exposure compared with a plain public ledger experience.
                                 </p>
                                 <p>
-                                    Sensitive invoice metadata stays off the public ledger, while commitment-based verification keeps the payment flow tamper-evident.
+                                    The product separates application-facing invoice data from contract-facing flows and keeps the MVP grounded in what the codebase actually supports.
                                 </p>
                             </SectionCard>
 
@@ -190,10 +190,10 @@ export const ChangelogOverlay: React.FC = () => {
                                 title="Reveal Only What Matters"
                             >
                                 <p>
-                                    Privacy does not have to mean total opacity. AnonPay is designed so merchants can prove specific financial facts without revealing everything else.
+                                    Privacy does not have to mean opacity. The current MVP includes selective disclosure links for settled invoices so merchants can share only chosen facts.
                                 </p>
                                 <p>
-                                    That means sharing settlement status, revenue windows, or summary totals with banks, auditors, or tax authorities without exposing raw customer-level history.
+                                    Richer trust-minimized verifier semantics remain roadmap work, but the product direction is already visible in the live flow.
                                 </p>
                             </SectionCard>
 
@@ -207,10 +207,10 @@ export const ChangelogOverlay: React.FC = () => {
                                 title="Built For Real Merchant Flows"
                             >
                                 <p>
-                                    AnonPay supports standard invoices, donation-style links, and multi-party payment flows so creators, freelancers, and businesses can accept crypto without turning their finances into public intel.
+                                    AnonPay supports merchant registration, invoice creation, hosted checkout, dashboard views, and payment-related flows in the current repository.
                                 </p>
                                 <p>
-                                    Hosted checkout, merchant dashboards, receipts, and payment verification are all shaped around privacy-first commerce rather than generic wallet transfers.
+                                    The goal is a usable merchant product, not just a protocol demo.
                                 </p>
                             </SectionCard>
 
@@ -224,10 +224,10 @@ export const ChangelogOverlay: React.FC = () => {
                                 title="Built Around Private Execution"
                             >
                                 <p>
-                                    AnonPay is built around Midnight’s privacy model, combining on-chain commitments with encrypted off-chain metadata and proof-driven verification.
+                                    AnonPay is built around Midnight because privacy is a product requirement here, not an afterthought layered on later.
                                 </p>
                                 <p>
-                                    The result is a payment stack where privacy is part of the protocol, not a patch layered on after the fact.
+                                    The MVP already shows that contract-backed invoicing can be shaped into a cleaner merchant experience.
                                 </p>
                             </SectionCard>
 
@@ -244,7 +244,7 @@ export const ChangelogOverlay: React.FC = () => {
                                     The goal is straightforward: merchants should be able to stay private by default, then disclose only the minimum necessary when the real world demands proof.
                                 </p>
                                 <p>
-                                    That makes AnonPay useful not just for receiving payments, but for financing, reporting, and trust-sensitive business relationships.
+                                    That makes AnonPay relevant for reporting, verification, and trust-sensitive business relationships without claiming the full roadmap is already complete.
                                 </p>
                             </SectionCard>
 
@@ -258,10 +258,10 @@ export const ChangelogOverlay: React.FC = () => {
                                 title="Create, Share, Verify"
                             >
                                 <p>
-                                    Connect your wallet, create an invoice, share the payment link, and let the recipient verify that the invoice is authentic before they pay.
+                                    Connect your wallet, create an invoice, share the payment flow, and let the app carry the user through checkout and settlement tracking.
                                 </p>
                                 <p>
-                                    From there, AnonPay handles settlement tracking, receipts, and merchant-side visibility without making your financial graph public.
+                                    The product loop is already real; the deeper privacy infrastructure continues from here.
                                 </p>
                             </SectionCard>
                         </div>

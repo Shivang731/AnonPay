@@ -42,20 +42,20 @@ export const GiftCardsPage: React.FC = () => {
                 className="flex flex-col items-center justify-center text-center mb-12"
             >
                 <h1 className="text-4xl md:text-5xl font-bold mb-6 tracking-tighter leading-tight !text-white drop-shadow-[0_0_20px_rgba(255,255,255,0.2)]">
-                    Private{' '}
+                    Gift card{' '}
                     <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 via-orange-300 to-orange-500 drop-shadow-[0_0_15px_rgba(249,115,22,0.3)]">
-                        Gift Cards
+                        experiments
                     </span>
                 </h1>
                 <p className="text-gray-400 text-sm leading-relaxed max-w-sm mb-6">
-                    Create zero-knowledge private gift cards or redeem one straight to your wallet — all on-chain.
+                    This section explores gift-card style flows inside the AnonPay app. Treat it as an experimental product surface, not the core MVP story.
                 </p>
                 <div className="max-w-xl rounded-2xl border border-orange-400/20 bg-orange-500/10 px-5 py-4 text-left">
                     <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-orange-300 mb-2">
-                        Sponsored By AnonPay
+                        Experimental Flow
                     </p>
                     <p className="text-sm text-white/80 leading-relaxed">
-                        Redeeming a gift card and paying directly from a gift card use AnonPay&apos;s relayer sponsorship flow. Proofs stay local, while AnonPay can cover the network fee for supported redeem and gift-card checkout actions.
+                        The main deliverable for this hackathon is private invoicing and checkout. This page remains available for experimentation, but it is not the primary surface judges should use to evaluate the product.
                     </p>
                 </div>
             </motion.div>

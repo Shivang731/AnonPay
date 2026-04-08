@@ -81,11 +81,11 @@ const Vision = () => {
             >
                 <motion.div variants={fadeInUp} className="text-center mb-20">
                     <h1 className="text-4xl md:text-5xl font-bold mb-6 tracking-tighter text-white leading-tight">
-                        The Future of <br className="hidden md:block" />
-                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#7effcc] to-emerald-400">Private Payments</span>
+                        The current <br className="hidden md:block" />
+                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#7effcc] to-emerald-400">MVP and roadmap</span>
                     </h1>
                     <p className="text-gray-400 text-lg md:text-xl max-w-2xl mx-auto leading-relaxed">
-                        AnonPay isn't just a tool; it's a vision for a world where financial privacy is the default, not an option.
+                        This page keeps the ambition visible while separating what the repository already delivers from what still belongs on the roadmap.
                     </p>
                 </motion.div>
 

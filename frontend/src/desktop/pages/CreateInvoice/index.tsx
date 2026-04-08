@@ -119,7 +119,7 @@ export const CreateInvoice: React.FC = () => {
                         Create <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-emerald-300 to-emerald-500 drop-shadow-[0_0_15px_rgba(126,255,204,0.3)]">AnonPay Invoice</span>
                     </h1>
                     <p className="text-gray-300 text-xl leading-relaxed max-w-2xl mb-2">
-                        Generate a privacy-preserving AnonPay invoice link to receive payments securely on the Midnight Network.
+                        Create an invoice for the current Midnight MVP flow and generate a payment link the payer can use through AnonPay.
                     </p>
                 </motion.div>
 

@@ -15,7 +15,7 @@ export const MidnightTokenInfo: React.FC = () => {
             <div className="max-w-7xl mx-auto px-6">
                 
                 <h2 className="text-4xl md:text-5xl font-bold text-white mb-12 text-center tracking-tight">
-                    Powered by <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-emerald-300 to-emerald-500 drop-shadow-[0_0_15px_rgba(126,255,204,0.3)]">Midnight</span>
+                    Built on <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-emerald-300 to-emerald-500 drop-shadow-[0_0_15px_rgba(126,255,204,0.3)]">Midnight</span>
                 </h2>
 
                 <motion.div
@@ -36,7 +36,7 @@ export const MidnightTokenInfo: React.FC = () => {
                         </span>
                     </h3>
                     <p className="text-lg text-gray-400 mb-8 min-h-[80px]">
-                        Midnight's testnet token. All payments are shielded by default using zero-knowledge cryptography, keeping your transaction amounts, balances, and counterparties private.
+                        The current AnonPay demo flow targets Midnight preprod and uses tDUST for testing. If you want to try the app end to end, start by funding a wallet from the faucet.
                     </p>
 
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -71,7 +71,7 @@ export const MidnightTokenInfo: React.FC = () => {
                     className="text-center border-t border-white/5 pt-6 mt-12"
                 >
                     <p className="text-xs text-gray-500 max-w-4xl mx-auto leading-relaxed">
-                        AnonPay is built on the Midnight Network, a privacy-first blockchain with native zero-knowledge proofs and selective disclosure. All transactions are shielded by default — no additional setup required.
+                        AnonPay uses Midnight as the foundation for its privacy-oriented invoice and payment workflow. The live MVP is focused on invoice creation, payment handling, and selective disclosure links rather than a fully finished proof-verifier stack.
                     </p>
                 </motion.div>
             </div>

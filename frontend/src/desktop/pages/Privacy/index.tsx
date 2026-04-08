@@ -21,8 +21,7 @@ const Privacy: React.FC = () => {
                         Privacy by <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#7effcc] to-emerald-400">Design</span>
                     </h1>
                     <p className="text-gray-300 text-xl leading-relaxed max-w-2xl mb-8">
-                        AnonPay leverages Midnight's shielded state and Zero-Knowledge Proofs to ensure your financial data remains confidential.
-                        We don't just protect your privacy; we mathematically guarantee it.
+                        AnonPay is built for privacy-sensitive commerce on Midnight, but this page is intentionally careful about what the MVP proves today and what still belongs to the roadmap.
                     </p>
                 </motion.div>
 
@@ -82,10 +81,10 @@ const Privacy: React.FC = () => {
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
                                 </svg>
                             </span>
-                            Blind Database
+                            Current Off-Chain Handling
                         </h2>
                         <p className="text-gray-400 mb-6 leading-relaxed">
-                            Our backend database is mathematically blind. We explicitly <strong>do not store</strong> the Amount or Memo fields in plaintext.
+                            The current MVP keeps application-facing invoice data off the public ledger, but it should not be described as a fully trust-minimized encrypted privacy stack.
                         </p>
                         <div className="grid grid-cols-2 gap-4">
                             <div className="bg-red-500/10 p-4 rounded-xl border border-red-500/20">
@@ -100,7 +99,7 @@ const Privacy: React.FC = () => {
                             </div>
                         </div>
                         <p className="mt-4 text-sm text-gray-500">
-                            Even if our database were compromised, your financial data remains non-existent or encrypted with AES-256-GCM.
+                            Stronger guarantees around off-chain privacy and verifier trust still belong in future work, not current product claims.
                         </p>
                     </div>
 
