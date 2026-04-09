@@ -41,17 +41,22 @@ export const BurnerWalletProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const [decryptedBurnerAddress, setDecryptedBurnerAddress] = useState<string | null>(null);
     const [hasBurnerOnChainRecord] = useState<boolean>(false);
 
+    const resetBurnerState = () => {
+        setBurnerAddress(null);
+        setEncryptedBurnerKey(null);
+        setDecryptedBurnerKey(null);
+        setFetchedFromChain(false);
+        setHasOnChainRecord(false);
+        setAppPassword(null);
+        setIsUnlocked(false);
+        setHasProfile(null);
+        setUserProfileMainAddress(null);
+        setDecryptedBurnerAddress(null);
+    };
+
     const refreshProfile = async () => {
         if (!walletAddress) {
-            setBurnerAddress(null);
-            setEncryptedBurnerKey(null);
-            setDecryptedBurnerKey(null);
-            setFetchedFromChain(false);
-            setHasOnChainRecord(false);
-            setAppPassword(null);
-            setIsUnlocked(false);
-            setHasProfile(null);
-            setUserProfileMainAddress(null);
+            resetBurnerState();
             return;
         }
 
@@ -62,12 +67,28 @@ export const BurnerWalletProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 setUserProfileMainAddress(profile.main_address || null);
                 setBurnerAddress(profile.burner_address || null);
                 setEncryptedBurnerKey(profile.encrypted_burner_key || null);
+                if (!profile.burner_address) {
+                    setDecryptedBurnerAddress(null);
+                }
+                if (!profile.encrypted_burner_key) {
+                    setDecryptedBurnerKey(null);
+                }
             } else {
                 setHasProfile(false);
+                setBurnerAddress(null);
+                setEncryptedBurnerKey(null);
+                setDecryptedBurnerKey(null);
+                setDecryptedBurnerAddress(null);
+                setUserProfileMainAddress(null);
             }
         } catch (error: any) {
             console.error("Failed to fetch user profile for burner wallet details", error);
             setHasProfile(false);
+            setBurnerAddress(null);
+            setEncryptedBurnerKey(null);
+            setDecryptedBurnerKey(null);
+            setDecryptedBurnerAddress(null);
+            setUserProfileMainAddress(null);
         }
     };
 
@@ -77,17 +98,40 @@ export const BurnerWalletProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     useEffect(() => {
         const decryptAddress = async () => {
-            if (appPassword && burnerAddress && !decryptedBurnerAddress) {
+            if (appPassword && burnerAddress) {
                 try {
                     const addr = await decryptWithPassword(burnerAddress, appPassword);
-                    setDecryptedBurnerAddress(addr);
+                    if (addr !== decryptedBurnerAddress) {
+                        setDecryptedBurnerAddress(addr);
+                    }
                 } catch (e) {
+                    setDecryptedBurnerAddress(null);
                     console.warn('Could not decrypt burner address for display', e);
                 }
+            } else if (!burnerAddress) {
+                setDecryptedBurnerAddress(null);
             }
         };
         decryptAddress();
     }, [appPassword, burnerAddress, decryptedBurnerAddress]);
+
+    useEffect(() => {
+        const decryptKey = async () => {
+            if (appPassword && encryptedBurnerKey) {
+                try {
+                    const key = await decryptWithPassword(encryptedBurnerKey, appPassword);
+                    if (key !== decryptedBurnerKey) {
+                        setDecryptedBurnerKey(key);
+                    }
+                } catch (e) {
+                    console.warn('Could not auto-decrypt burner private key', e);
+                }
+            } else if (!encryptedBurnerKey) {
+                setDecryptedBurnerKey(null);
+            }
+        };
+        decryptKey();
+    }, [appPassword, encryptedBurnerKey, decryptedBurnerKey]);
 
     return (
         <BurnerWalletContext.Provider value={{

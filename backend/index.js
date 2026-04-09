@@ -56,6 +56,28 @@ function computeInvoiceCommitmentHex({ merchantAddress, amount, saltHex }) {
     return crypto.createHash('sha256').update(combined).digest('hex');
 }
 
+function parseReceiptCommitmentValues(value) {
+    if (!value) return [];
+    if (Array.isArray(value)) {
+        return value.map((entry) => String(entry || '').trim()).filter(Boolean);
+    }
+
+    const text = String(value).trim();
+    if (!text) return [];
+    if (text.startsWith('[') && text.endsWith(']')) {
+        try {
+            const parsed = JSON.parse(text);
+            return Array.isArray(parsed)
+                ? parsed.map((entry) => String(entry || '').trim()).filter(Boolean)
+                : [];
+        } catch {
+            return [];
+        }
+    }
+
+    return [text];
+}
+
 function normalizeInvoiceStatus(value, fallback = 'PENDING') {
     const normalized = String(value || '').trim().toUpperCase();
 
@@ -253,14 +275,14 @@ async function maybeResolveInvoiceId(invoice) {
         return invoice;
     }
 
-    const indexerUrl = process.env.MIDNIGHT_INDEXER_URL;
-    const contractAddress = process.env.ANONPAY_CONTRACT_ADDRESS;
-
-    if (!indexerUrl || !contractAddress) {
-        return invoice;
-    }
-
     try {
+        const indexerUrl = process.env.MIDNIGHT_INDEXER_URL;
+        const contractAddress = process.env.ANONPAY_CONTRACT_ADDRESS;
+
+        if (!indexerUrl || !contractAddress) {
+            return invoice;
+        }
+
         const transactions = await fetchIndexerTransactionsForInvoiceResolution(
             indexerUrl,
             contractAddress,
@@ -427,7 +449,7 @@ function getDeveloperKnowledgeContext(message, context) {
             '- It validates the merchant by calling `POST /api/sdk/onboard/validate` with the secret key as a Bearer token.',
             '- It can create fixed-amount `multipay` invoices and open-amount `donation` invoices.',
             '- Multipay invoices prompt for `name`, `amount`, `currency`, and optional memo label.',
-            '- Donation invoices are built from token templates and support `CREDITS`, `USDCX`, `USAD`, and `ANY`.',
+            '- Donation invoices are built from token templates and support `TDUST`, `USDCX`, `USAD`, and `ANY`.',
             '- For every invoice, the CLI generates a random salt locally with `crypto.randomBytes(16)` and converts it to the field format used by the invoice mapping flow.',
             '- It submits invoice creation through the AnonPay relayer using `POST /api/dps/relayer/create-invoice`.',
             '- After submission, it polls the Provable mapping endpoint `salt_to_invoice` for up to about 60 retries with a 2 second delay to resolve the on-chain invoice hash.',
@@ -698,7 +720,8 @@ async function generateDeveloperAssistantReply(message, context) {
 }
 
 async function submitRelayedInvoiceCreation({ merchantPubKey, amount, currency, salt, memo, invoice_type }) {
-    const uppercaseCurrency = (currency || 'CREDITS').toUpperCase();
+    const requestedCurrency = (currency || 'TDUST').toUpperCase();
+    const uppercaseCurrency = requestedCurrency === 'CREDITS' ? 'TDUST' : requestedCurrency;
     const isDonation = invoice_type === 2;
     const amountVal = amount ? Number(amount) : 0;
     const amountMicro = isDonation ? 0n : BigInt(Math.round(amountVal * 1000000));
@@ -1261,9 +1284,10 @@ app.post('/api/checkout/sessions', async (req, res) => {
     }
 
     // Map string currency to our token system
-    const validCurrencies = ['CREDITS', 'USDCX', 'USAD', 'ANY'];
-    const uppercaseCurrency = currency ? currency.toUpperCase() : 'CREDITS';
-    if (!validCurrencies.includes(uppercaseCurrency)) {
+    const validCurrencies = ['TDUST', 'CREDITS', 'USDCX', 'USAD', 'ANY'];
+    const requestedCurrency = currency ? currency.toUpperCase() : 'TDUST';
+    const uppercaseCurrency = requestedCurrency === 'CREDITS' ? 'TDUST' : requestedCurrency;
+    if (!validCurrencies.includes(requestedCurrency)) {
         return res.status(400).json({ error: `Invalid currency. Must be one of: ${validCurrencies.join(', ')}` });
     }
     if (uppercaseCurrency === 'ANY' && finalInvoiceType !== 2) {
@@ -1295,7 +1319,7 @@ app.post('/api/checkout/sessions', async (req, res) => {
                         ? 'USDCX'
                         : invoice.token_type === 2
                             ? 'USAD'
-                            : 'CREDITS';
+                            : 'TDUST';
                 console.log(`[Checkout] Derived currency from invoice: ${finalCurrency}`);
             }
         }
@@ -1509,12 +1533,12 @@ app.post('/api/invoices', async (req, res) => {
 
 app.patch('/api/invoices/:hash', async (req, res) => {
     const { hash } = req.params;
-    const { status, payment_tx_ids, payer_address, block_settled, session_id, receipt_commitment } = req.body;
+    const { status, payment_tx_ids, payment_receipts, payer_address, block_settled, session_id, receipt_commitment } = req.body;
 
     try {
         const { data: current, error: fetchError } = await supabase
             .from('invoices')
-            .select('payment_tx_ids, invoice_type, status, merchant_address') // Select merchant_address for decryption
+            .select('*')
             .eq('invoice_hash', hash)
             .single();
 
@@ -1524,7 +1548,6 @@ app.patch('/api/invoices/:hash', async (req, res) => {
             updated_at: new Date().toISOString()
         };
         if (block_settled) updates.block_settled = block_settled;
-        if (receipt_commitment) updates.receipt_commitment = receipt_commitment;
         // payer_address handling removed
 
         const normalizeTxIds = (value) => {
@@ -1556,6 +1579,57 @@ app.patch('/api/invoices/:hash', async (req, res) => {
             const currentIds = normalizeTxIds(current.payment_tx_ids);
             const incomingIds = normalizeTxIds(payment_tx_ids);
             updates.payment_tx_ids = Array.from(new Set([...currentIds, ...incomingIds]));
+        }
+
+        if (Array.isArray(payment_receipts) && payment_receipts.length > 0) {
+            const currentReceipts = Array.isArray(current.payment_receipts) ? current.payment_receipts : [];
+            const mergedReceipts = [...currentReceipts];
+            const seenReceiptHashes = new Set(
+                [
+                    ...currentReceipts.map((receipt) => String(receipt?.receiptHash || receipt?.receipt_hash || '').trim()),
+                    ...parseReceiptCommitmentValues(current.receipt_commitment),
+                ].filter(Boolean)
+            );
+
+            for (const receipt of payment_receipts) {
+                const receiptHash = String(receipt?.receiptHash || receipt?.receipt_hash || '').trim();
+                if (!receiptHash || seenReceiptHashes.has(receiptHash)) continue;
+                seenReceiptHashes.add(receiptHash);
+                mergedReceipts.push({
+                    receiptHash,
+                    txId: receipt?.txId || receipt?.tx_id || null,
+                    amount: Number(receipt?.amount) || 0,
+                    tokenType: receipt?.tokenType ?? receipt?.token_type ?? 0,
+                    timestamp: receipt?.timestamp || Date.now(),
+                });
+            }
+
+            if (Object.prototype.hasOwnProperty.call(current, 'payment_receipts')) {
+                updates.payment_receipts = mergedReceipts;
+            }
+
+            const mergedReceiptHashes = [
+                ...parseReceiptCommitmentValues(current.receipt_commitment),
+                ...mergedReceipts.map((receipt) => String(receipt?.receiptHash || '').trim()),
+            ].filter(Boolean);
+
+            const uniqueReceiptHashes = Array.from(new Set(mergedReceiptHashes));
+            if (uniqueReceiptHashes.length > 0) {
+                updates.receipt_commitment = uniqueReceiptHashes.length === 1
+                    ? uniqueReceiptHashes[0]
+                    : JSON.stringify(uniqueReceiptHashes);
+            }
+        }
+
+        if (receipt_commitment && !updates.receipt_commitment) {
+            const mergedReceiptHashes = Array.from(new Set([
+                ...parseReceiptCommitmentValues(current.receipt_commitment),
+                ...parseReceiptCommitmentValues(receipt_commitment),
+            ]));
+
+            updates.receipt_commitment = mergedReceiptHashes.length <= 1
+                ? (mergedReceiptHashes[0] || receipt_commitment)
+                : JSON.stringify(mergedReceiptHashes);
         }
 
         if (status) updates.status = normalizeInvoiceStatus(status);
@@ -1647,7 +1721,7 @@ app.get('/api/invoices/:hash/verify', async (req, res) => {
     try {
         const { data: invoice, error } = await supabase
             .from('invoices')
-            .select('invoice_hash, designated_address, amount, salt, status, payment_tx_ids, payment_tx_id, block_settled, invoice_type')
+            .select('*')
             .eq('invoice_hash', hash)
             .maybeSingle();
 
@@ -1678,6 +1752,101 @@ app.get('/api/invoices/:hash/verify', async (req, res) => {
     } catch (err) {
         console.error('Error verifying invoice:', err);
         return res.status(500).json({ error: 'Failed to verify invoice.' });
+    }
+});
+
+app.get('/api/invoices/lookup', async (req, res) => {
+    const rawQuery = String(req.query.q || '').trim();
+
+    if (!rawQuery) {
+        return res.status(400).json({ error: 'Missing lookup query.' });
+    }
+
+    const selectClause = '*';
+
+    const normalizeReceiptHash = (receipt) =>
+        String(receipt?.receiptHash || receipt?.receipt_hash || '').trim();
+
+    const buildLookupResult = (invoice, matchType) => {
+        const paymentIds = Array.isArray(invoice.payment_tx_ids)
+            ? invoice.payment_tx_ids.filter(Boolean)
+            : invoice.payment_tx_id
+                ? [invoice.payment_tx_id]
+                : [];
+
+        return {
+            invoice: normalizeInvoiceRecord(invoice),
+            match_type: matchType,
+            matched_value: rawQuery,
+            payment_tx_count: paymentIds.length,
+        };
+    };
+
+    try {
+        let invoice = null;
+        let matchType = null;
+
+        const { data: directMatch, error: directError } = await supabase
+            .from('invoices')
+            .select(selectClause)
+            .or(`invoice_hash.eq.${rawQuery},invoice_id.eq.${rawQuery}`)
+            .limit(1)
+            .maybeSingle();
+
+        if (directError) throw directError;
+
+        if (directMatch) {
+            invoice = directMatch;
+            if (directMatch.invoice_hash === rawQuery) matchType = 'invoice_hash';
+            else if (String(directMatch.invoice_id || '') === rawQuery) matchType = 'invoice_id';
+        }
+
+        if (!invoice) {
+            const { data: paymentArrayMatch, error: paymentArrayError } = await supabase
+                .from('invoices')
+                .select(selectClause)
+                .contains('payment_tx_ids', [rawQuery])
+                .limit(1)
+                .maybeSingle();
+
+            if (paymentArrayError) throw paymentArrayError;
+            if (paymentArrayMatch) {
+                invoice = paymentArrayMatch;
+                matchType = 'payment_tx_id';
+            }
+        }
+
+        if (!invoice) {
+            const { data: receiptCandidates, error: receiptCandidatesError } = await supabase
+                .from('invoices')
+                .select(selectClause)
+                .order('updated_at', { ascending: false })
+                .limit(1000);
+
+            if (receiptCandidatesError) throw receiptCandidatesError;
+
+            const receiptMatch = (receiptCandidates || []).find((candidate) =>
+                (
+                    Array.isArray(candidate.payment_receipts) &&
+                    candidate.payment_receipts.some((receipt) => normalizeReceiptHash(receipt) === rawQuery)
+                ) ||
+                parseReceiptCommitmentValues(candidate.receipt_commitment).includes(rawQuery)
+            );
+
+            if (receiptMatch) {
+                invoice = receiptMatch;
+                matchType = 'receipt_hash';
+            }
+        }
+
+        if (!invoice) {
+            return res.status(404).json({ error: 'Invoice lookup failed.' });
+        }
+
+        return res.json(buildLookupResult(invoice, matchType || 'unknown'));
+    } catch (err) {
+        console.error('Invoice lookup failed:', err);
+        return res.status(500).json({ error: 'Failed to lookup invoice.' });
     }
 });
 
@@ -1774,7 +1943,12 @@ app.post('/api/users/profile/clear-burner', async (req, res) => {
     try {
         const { data, error } = await supabase
             .from('users')
-            .update({ burner_address: null, encrypted_burner_key: null, updated_at: new Date().toISOString() })
+            .update({
+                burner_address: null,
+                encrypted_burner_key: null,
+                profile_burner_invoice_hash: null,
+                updated_at: new Date().toISOString()
+            })
             .eq('address_hash', address_hash)
             .select()
             .single();

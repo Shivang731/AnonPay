@@ -8,6 +8,8 @@ import { CheckoutPage } from '../shared/pages/Checkout';
 import InvoiceDetails from '../shared/pages/InvoiceDetails';
 import GiftCardsPage from '../shared/pages/GiftCards';
 import { ProtectedRoute } from '../shared/components/ProtectedRoute';
+import Verification from '../desktop/pages/Verification';
+import { ChangelogOverlay } from '../desktop/components/ChangelogOverlay';
 
 const MobileAnimatedRoutes = () => {
     const location = useLocation();
@@ -22,6 +24,8 @@ const MobileAnimatedRoutes = () => {
                 <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
                 <Route path="/checkout/:id" element={<CheckoutPage />} />
                 <Route path="/invoice/:hash" element={<InvoiceDetails />} />
+                <Route path="/verify" element={<Verification />} />
+                <Route path="/verify/:proofId" element={<Verification />} />
                 <Route path="*" element={<Navigate to="/create" replace />} />
             </Routes>
         </AnimatePresence>
@@ -45,6 +49,7 @@ export const MobileApp = () => {
             </div>
 
             <Navbar />
+            <ChangelogOverlay />
 
             <main className="relative z-10 pt-24 px-4 pb-32 md:pb-12">
                 <MobileAnimatedRoutes />

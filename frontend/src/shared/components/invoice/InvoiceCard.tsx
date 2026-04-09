@@ -60,6 +60,10 @@ export const InvoiceCard: React.FC<InvoiceCardProps> = ({
         setTimeout(() => setCopied(false), 2000);
     };
 
+    const handleCopyAddress = () => {
+        navigator.clipboard.writeText(invoiceData.merchant);
+    };
+
     return (
         <GlassCard className="text-center p-8 bg-gradient-to-b from-glass-surface to-black/40">
             <h3 className="mb-6 text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-neon-primary to-neon-accent animate-pulse-glow">
@@ -129,13 +133,10 @@ export const InvoiceCard: React.FC<InvoiceCardProps> = ({
                                 level="H"
                                 includeMargin={false}
                             />
-                            <div className="absolute left-1/2 top-1/2 flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-xl bg-white p-1.5 shadow-[0_8px_22px_rgba(0,0,0,0.2)]">
-                                <img
-                                    src="/assets/anonpay_logo.png"
-                                    alt="AnonPay"
-                                    className="h-full w-full object-contain"
-                                    style={{ filter: 'brightness(0)' }}
-                                />
+                            <div className="absolute left-1/2 top-1/2 flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-xl border border-black/10 bg-white shadow-[0_8px_22px_rgba(0,0,0,0.2)]">
+                                <span className="text-[10px] font-black tracking-tight text-black">
+                                    AP
+                                </span>
                             </div>
                         </div>
                         {(!invoiceData.type || invoiceData.type === 1) && (
@@ -165,6 +166,22 @@ export const InvoiceCard: React.FC<InvoiceCardProps> = ({
                         onClick={handleCopy}
                     >
                         {copied ? 'Copied!' : 'Copy'}
+                    </Button>
+                </div>
+            </div>
+
+            <div className="mb-8">
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-widest mb-2 text-left ml-1">Receiving Address</label>
+                <div className="flex gap-2">
+                    <div className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-3 font-mono text-sm text-gray-300 truncate">
+                        {invoiceData.merchant}
+                    </div>
+                    <Button
+                        variant="secondary"
+                        size="md"
+                        onClick={handleCopyAddress}
+                    >
+                        Copy
                     </Button>
                 </div>
             </div>

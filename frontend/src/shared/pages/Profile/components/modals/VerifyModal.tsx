@@ -65,15 +65,15 @@ export const VerifyModal: React.FC<VerifyModalProps> = ({
 
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-400 mb-2">Payer Receipt Hash</label>
+                                <label className="block text-sm font-medium text-gray-400 mb-2">Invoice Or Payment Identifier</label>
                                 <input
                                     type="text"
                                     value={verifyInput}
                                     onChange={(e) => setVerifyInput(e.target.value)}
-                                    placeholder="Enter receipt hash..."
+                                    placeholder="Enter invoice hash, invoice id, tx id, or receipt hash..."
                                     className="w-full bg-black/40 border border-white/10 rounded-lg p-3 text-white focus:outline-none focus:border-neon-primary"
                                 />
-                                <p className="text-xs text-gray-500 mt-2">Enter the receipt hash provided by the payer.</p>
+                                <p className="text-xs text-gray-500 mt-2">Accepted inputs: invoice hash, invoice id, payment tx id, or receipt hash.</p>
                             </div>
 
                             {/* PAYMENT RECORDS LIST */}
@@ -127,10 +127,30 @@ export const VerifyModal: React.FC<VerifyModalProps> = ({
                                     </div>
                                     <div className="space-y-1 text-sm">
                                         <div className="flex justify-between">
-                                            <span className="text-gray-400">Amount Paid:</span>
+                                            <span className="text-gray-400">Matched By:</span>
+                                            <span className="text-white font-mono uppercase">{String(verifiedRecord.matchType || 'unknown').replace(/_/g, ' ')}</span>
+                                        </div>
+                                        {verifiedRecord.invoiceId && (
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-400">Invoice ID:</span>
+                                                <span className="text-white font-mono">{verifiedRecord.invoiceId}</span>
+                                            </div>
+                                        )}
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-400">Invoice Hash:</span>
+                                            <span className="text-white font-mono">{verifiedRecord.invoiceHash?.slice(0, 10)}...</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-gray-400">Amount:</span>
                                             <span className="text-white font-mono">{verifiedRecord.amount} tDUST</span>
                                         </div>
-                                        <div className="text-xs text-gray-500 mt-2">Matches your private records.</div>
+                                        {verifiedRecord.status && (
+                                            <div className="flex justify-between">
+                                                <span className="text-gray-400">Status:</span>
+                                                <span className="text-white font-mono">{verifiedRecord.status}</span>
+                                            </div>
+                                        )}
+                                        <div className="text-xs text-gray-500 mt-2">Identifier resolves to the selected invoice.</div>
                                     </div>
                                 </div>
                             )}
@@ -142,15 +162,16 @@ export const VerifyModal: React.FC<VerifyModalProps> = ({
                                         Invoice Mismatch
                                     </div>
                                     <div className="text-sm text-gray-300">
-                                        This receipt is valid but belongs to a <strong>different invoice</strong>.
-                                        <div className="mt-1 font-mono text-xs text-gray-500">Receipt Invoice: {verifiedRecord.invoiceHash.slice(0, 10)}...</div>
+                                        This identifier is valid but belongs to a <strong>different invoice</strong>.
+                                        <div className="mt-1 font-mono text-xs text-gray-500">Matched By: {String(verifiedRecord.matchType || 'unknown').replace(/_/g, ' ')}</div>
+                                        <div className="mt-1 font-mono text-xs text-gray-500">Resolved Invoice: {verifiedRecord.invoiceHash.slice(0, 10)}...</div>
                                     </div>
                                 </div>
                             )}
 
                             {verifyStatus === 'NOT_FOUND' && (
                                 <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 text-center text-red-400 text-sm">
-                                    No matching receipt found in your records.
+                                    No matching invoice or payment record was found.
                                 </div>
                             )}
 
@@ -159,7 +180,7 @@ export const VerifyModal: React.FC<VerifyModalProps> = ({
                                 onClick={onVerify}
                                 disabled={verifyStatus === 'CHECKING' || !verifyInput}
                             >
-                                {verifyStatus === 'CHECKING' ? 'Checking Records...' : 'Verify Receipt'}
+                                {verifyStatus === 'CHECKING' ? 'Checking Records...' : 'Verify Invoice'}
                             </Button>
                         </div>
                     </motion.div>

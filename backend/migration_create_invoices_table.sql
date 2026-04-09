@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS public.invoices (
     block_settled BIGINT,
     invoice_transaction_id TEXT,
     payment_tx_ids TEXT[],
+    payment_receipts JSONB,
     expiry TEXT,
     receipt_commitment TEXT,
     salt TEXT,

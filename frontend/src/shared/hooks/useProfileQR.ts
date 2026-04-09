@@ -7,7 +7,7 @@ import { useBurnerWallet } from './BurnerWalletProvider';
 
 export const useProfileQR = () => {
     const { walletAddress } = useMidnightWallet();
-    const { burnerAddress, appPassword, userProfileMainAddress } = useBurnerWallet();
+    const { burnerAddress, decryptedBurnerAddress, appPassword, userProfileMainAddress } = useBurnerWallet();
     const [loading, setLoading] = useState(false);
     const [status, setStatus] = useState('');
     const [mainHash, setMainHash] = useState<string | null>(null);
@@ -50,7 +50,13 @@ export const useProfileQR = () => {
         if (!appPassword) throw new Error("Please enter your password to unlock the application.");
 
         const salt = generateSalt();
-        const merchantAddress = isBurner && burnerAddress ? burnerAddress : walletAddress;
+        const merchantAddress = isBurner
+            ? (decryptedBurnerAddress || null)
+            : walletAddress;
+
+        if (!merchantAddress) {
+            throw new Error('Burner wallet is locked. Unlock it before generating the private QR.');
+        }
 
         setStatus(`Creating ${isBurner ? 'Burner' : 'Main'} invoice...`);
 

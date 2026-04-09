@@ -105,6 +105,8 @@ Midnight supports privacy-oriented contracts and proofs naturally.
 
 ## 🏗️ Architecture
 
+![AnonPay Architecture](assets/architecture.svg)
+
 ### Frontend (React 18, TypeScript, Vite, Tailwind)
 - Home, Create Invoice, Pay, Profile, Checkout, Explorer, Privacy, Docs, Developer, Invoice Details.
 

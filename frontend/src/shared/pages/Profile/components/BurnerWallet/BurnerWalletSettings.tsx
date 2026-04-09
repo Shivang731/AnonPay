@@ -2,7 +2,7 @@ import React from 'react';
 import { GlassCard } from '../../../../components/ui/GlassCard';
 import { useBurnerActions } from './useBurnerActions';
 import ConfirmModal from '../../../../components/ConfirmModal';
-import { SweepModal } from './SweepModal';
+import { ImportBurnerModal } from './ImportBurnerModal';
 import type { BurnerWalletSettingsProps } from './types';
 
 export const BurnerWalletSettings: React.FC<BurnerWalletSettingsProps> = ({ itemVariants }) => {
@@ -93,38 +93,42 @@ export const BurnerWalletSettings: React.FC<BurnerWalletSettingsProps> = ({ item
                                         <span className="text-blue-400 text-[11px] font-bold">Password and Private Key securely fetched from on-chain records.</span>
                                     </div>
                                 )}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div className="p-3 rounded-xl border border-white/10 bg-black/30">
+                                        <div className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Private Receive Address</div>
+                                        <div className="text-xs font-mono text-white break-all">{a.decryptedBurnerAddress}</div>
+                                    </div>
+                                    <div className="p-3 rounded-xl border border-white/10 bg-black/30">
+                                        <div className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">Encrypted Backup</div>
+                                        <p className="text-xs text-gray-400 leading-relaxed">
+                                            Download an encrypted JSON backup of this burner wallet and keep it offline.
+                                        </p>
+                                    </div>
+                                </div>
                                 <div className="flex flex-col md:flex-row items-center justify-between gap-3">
                                     <p className="text-xs text-gray-400">
-                                        Copy your burner private key and import it into <strong className="text-white">Shield Wallet</strong>.
+                                        This burner wallet is now usable for private receiving flows. You can copy the address, export the encrypted backup, or copy the raw private key for manual import.
                                     </p>
-                                    <div className="flex gap-2 shrink-0">
-                                        {!(a.fetchedFromChain || a.hasBurnerOnChainRecord) && (
-                                            <>
-                                                <button onClick={() => a.setShowBackupModal(true)}
-                                                    disabled={a.isBackingUp}
-                                                    className="px-4 py-1.5 bg-transparent border border-white/20 hover:bg-white/5 text-white font-bold rounded-lg transition-all text-xs disabled:opacity-50">
-                                                    {a.isBackingUp ? 'Backing up...' : 'Backup as Record (Optional)'}
-                                                </button>
-
-                                                <ConfirmModal
-                                                    open={a.showBackupModal}
-                                                    title="Backup Burner Wallet"
-                                                    description={"This will save an encrypted backup of your burner wallet on the Midnight blockchain. A network fee will be applied. Continue?"}
-                                                    confirmLabel="Backup"
-                                                    cancelLabel="Cancel"
-                                                    loading={a.isBackingUp}
-                                                    onConfirm={() => { a.handleBackupRecord(); }}
-                                                    onClose={() => a.setShowBackupModal(false)}
-                                                />
-                                            </>
-                                        )}
-                                        <button onClick={a.openSweepModal}
-                                            className="px-4 py-1.5 bg-blue-500/20 border border-blue-500/50 hover:bg-blue-500/30 text-blue-400 font-bold rounded-lg transition-all text-xs shadow-[0_0_10px_rgba(59,130,246,0.1)] hover:scale-105">
-                                            Sweep Funds
+                                    <div className="flex flex-wrap gap-2 shrink-0 justify-end">
+                                        <button onClick={a.handleCopyAddress}
+                                            className="px-4 py-1.5 bg-transparent border border-white/20 hover:bg-white/5 text-white font-bold rounded-lg transition-all text-xs">
+                                            {a.copiedAddress ? '✓ Address Copied' : 'Copy Address'}
+                                        </button>
+                                        <button onClick={a.handleDownloadBackup}
+                                            className="px-4 py-1.5 bg-blue-500/20 border border-blue-500/50 hover:bg-blue-500/30 text-blue-400 font-bold rounded-lg transition-all text-xs shadow-[0_0_10px_rgba(59,130,246,0.1)]">
+                                            Download Backup
+                                        </button>
+                                        <button onClick={() => a.setShowImportModal(true)}
+                                            className="px-4 py-1.5 bg-white/5 border border-white/15 hover:bg-white/10 text-white font-bold rounded-lg transition-all text-xs">
+                                            Import / Export
                                         </button>
                                         <button onClick={a.handleCopyKey}
                                             className="px-4 py-1.5 bg-neon-primary hover:bg-neon-accent text-black font-bold rounded-lg transition-all text-xs shadow-[0_0_10px_rgba(34,197,94,0.2)] hover:scale-105">
                                             {a.copied ? '✓ Copied!' : 'Copy Private Key'}
+                                        </button>
+                                        <button onClick={() => a.setShowRemoveModal(true)}
+                                            className="px-4 py-1.5 bg-red-500/10 border border-red-500/40 hover:bg-red-500/20 text-red-400 font-bold rounded-lg transition-all text-xs">
+                                            Remove Burner
                                         </button>
                                     </div>
                                 </div>
@@ -134,21 +138,27 @@ export const BurnerWalletSettings: React.FC<BurnerWalletSettingsProps> = ({ item
                 )}
             </GlassCard>
 
-            {/* ── Modals ── */}
-            {a.showSweepModal && (
-                <SweepModal
-                    privateBalances={a.privateBalances}
-                    isScanningBalances={a.isScanningBalances}
-                    onScanBalances={a.fetchPrivateBalances}
-                    sweepCurrency={a.sweepCurrency} setSweepCurrency={a.setSweepCurrency}
-                    sweepAmount={a.sweepAmount} setSweepAmount={a.setSweepAmount}
-                    sweepDestination={a.sweepDestination} setSweepDestination={a.setSweepDestination}
-                    isSweeping={a.isSweeping}
-                    error={a.error}
-                    sweepSuccess={a.sweepSuccess} sweepTxId={a.sweepTxId}
-                    sweepLogs={a.sweepLogs} logsEndRef={a.logsEndRef}
-                    onSubmit={a.handleSweepFunds}
-                    onClose={() => { a.setShowSweepModal(false); a.setSweepLogs([]); a.setSweepTxId(null); a.setSweepSuccess(''); }}
+            <ConfirmModal
+                open={a.showRemoveModal}
+                title="Remove Burner Wallet"
+                description={"This removes the burner wallet from your saved AnonPay profile on this account. Continue?"}
+                confirmLabel="Remove"
+                cancelLabel="Cancel"
+                loading={a.isRemoving}
+                onConfirm={() => { a.handleRemoveBurner(); }}
+                onClose={() => a.setShowRemoveModal(false)}
+            />
+
+            {a.decryptedBurnerAddress && a.decryptedBurnerKey && (
+                <ImportBurnerModal
+                    open={a.showImportModal}
+                    burnerAddress={a.decryptedBurnerAddress}
+                    burnerSecretHex={a.decryptedBurnerKey}
+                    onClose={() => a.setShowImportModal(false)}
+                    onCopyAddress={a.handleCopyAddress}
+                    onCopySecret={a.handleCopyKey}
+                    onDownloadEncrypted={a.handleDownloadBackup}
+                    onDownloadPlaintext={a.handleDownloadPlaintextBackup}
                 />
             )}
         </>

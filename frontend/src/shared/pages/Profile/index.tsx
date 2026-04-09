@@ -20,6 +20,7 @@ import { WalletBalances } from './components/WalletBalances';
 import { useWalletBalances } from '../../hooks/useWalletBalances';
 import { DashboardChatbot } from './components/DashboardChatbot';
 import { deriveInvoiceRecordFromDbInvoice, deriveMerchantReceiptsFromInvoice, normalizeInvoiceHash, readStoredPayerReceipts } from '../../utils/receipts';
+import { lookupInvoice } from '../../services/api';
 
 // Midnight types — replaces Midnight receipt/invoice types
 export interface MerchantReceipt {
@@ -338,24 +339,53 @@ const Profile: React.FC = () => {
         try {
             setVerifyStatus('CHECKING');
             setVerifiedRecord(null);
+            const normalizedInput = verifyInput.trim();
             const allReceipts = [...merchantReceipts, ...burnerMerchantReceipts];
-            const foundRecord = allReceipts.find((receipt) => receipt.receiptHash === verifyInput.trim());
+            const foundRecord = allReceipts.find((receipt) => receipt.receiptHash === normalizedInput);
             if (foundRecord) {
                 const recordHash = normalizeInvoiceHash(foundRecord.invoiceHash);
-                const invoiceHash = normalizeInvoiceHash(verifyingInvoice.invoiceHash || verifyingInvoice.invoice_hash);
+                const invoiceHash = normalizeInvoiceHash(verifyingInvoice?.invoiceHash || verifyingInvoice?.invoice_hash);
 
                 if (verifyingInvoice && recordHash !== invoiceHash) {
-                    setVerifiedRecord({ ...foundRecord, amount: Number(foundRecord.amount) / 1_000_000 });
+                    setVerifiedRecord({
+                        ...foundRecord,
+                        amount: Number(foundRecord.amount) / 1_000_000,
+                        matchType: 'receipt_hash'
+                    });
                     setVerifyStatus('MISMATCH');
                 } else {
-                    setVerifiedRecord({ ...foundRecord, amount: Number(foundRecord.amount) / 1_000_000 });
+                    setVerifiedRecord({
+                        ...foundRecord,
+                        amount: Number(foundRecord.amount) / 1_000_000,
+                        matchType: 'receipt_hash'
+                    });
                     setVerifyStatus('FOUND');
                 }
-            } else {
-                setVerifyStatus('NOT_FOUND');
+                return;
             }
 
+            const lookup = await lookupInvoice(normalizedInput);
+            const lookedUpHash = normalizeInvoiceHash(lookup.invoice.invoice_hash);
+            const expectedHash = normalizeInvoiceHash(verifyingInvoice?.invoiceHash || verifyingInvoice?.invoice_hash);
+            const matchesSelectedInvoice = !verifyingInvoice || lookedUpHash === expectedHash;
+
+            setVerifiedRecord({
+                invoiceHash: lookedUpHash,
+                invoiceId: lookup.invoice.invoice_id,
+                amount: Number(lookup.invoice.amount) || 0,
+                status: lookup.invoice.status,
+                paymentTxIds: lookup.invoice.payment_tx_ids || (lookup.invoice.payment_tx_id ? [lookup.invoice.payment_tx_id] : []),
+                receiptHash: lookup.match_type === 'receipt_hash' ? normalizedInput : undefined,
+                matchType: lookup.match_type
+            });
+            setVerifyStatus(matchesSelectedInvoice ? 'FOUND' : 'MISMATCH');
+
         } catch (e) {
+            const message = e instanceof Error ? e.message : 'Verification failed';
+            if (/lookup failed|not found/i.test(message)) {
+                setVerifyStatus('NOT_FOUND');
+                return;
+            }
             handleWalletError(e);
             console.error("Verification failed", e);
             setVerifyStatus('ERROR');

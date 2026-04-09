@@ -255,10 +255,10 @@ const Home = () => {
                                 {[
                                     { icon: Shield, title: 'Private Invoice Creation', desc: 'The merchant enters an amount, memo, and invoice type. The browser generates a random 128-bit salt locally, computes a SHA-256 commitment from the merchant address, amount, and salt, and sends only that hash to the `create_invoice` circuit on Midnight.', colorClass: 'text-[#7effcc]', bgClass: 'bg-[#7effcc]/8', borderClass: 'border-[#7effcc]/15', float: true },
                                     { icon: EyeOff, title: 'Untraceable Payments', desc: "Payments execute through Midnight's shielded transaction layer. The sender's identity is never revealed on-chain. No one can trace who paid the invoice.", colorClass: 'text-cyan-400', bgClass: 'bg-cyan-500/8', borderClass: 'border-cyan-500/15', float: false },
-                                    { icon: Layers, title: 'Dual-Record System', desc: 'Every payment atomically generates two encrypted receipts — a PayerReceipt and MerchantReceipt. Both parties get proof without public exposure.', colorClass: 'text-violet-400', bgClass: 'bg-violet-500/8', borderClass: 'border-violet-500/15', float: true },
+                                    { icon: Layers, title: 'Receipt Evidence', desc: 'Settled invoices surface receipt hashes and receipt commitments so merchants can reconcile payments and verify settlement activity without relying on a public-readable ledger view.', colorClass: 'text-violet-400', bgClass: 'bg-violet-500/8', borderClass: 'border-violet-500/15', float: true },
                                     { icon: Zap, title: 'Selective Disclosure', desc: 'Generate ZK proofs that reveal only specific financial facts — total income, revenue trends — to banks, tax authorities, or auditors. Nothing more.', colorClass: 'text-emerald-400', bgClass: 'bg-emerald-500/8', borderClass: 'border-emerald-500/15', float: false },
                                     { icon: FileText, title: 'Flexible Invoice Types', desc: 'Standard invoices for one-time payments, Multi-Pay invoices for crowdfunding campaigns, and Donation invoices with open-ended amounts.', colorClass: 'text-[#7effcc]', bgClass: 'bg-[#7effcc]/8', borderClass: 'border-[#7effcc]/15', float: true },
-                                    { icon: KeyRound, title: 'Encrypted Metadata', desc: 'The blockchain never sees the merchant identity or invoice amount. The backend stores the invoice metadata separately in encrypted form, and the merchant gets a shareable payment link with the salt embedded for later verification.', colorClass: 'text-cyan-400', bgClass: 'bg-cyan-500/8', borderClass: 'border-cyan-500/15', float: false },
+                                    { icon: KeyRound, title: 'Separated Metadata', desc: 'Contract-facing invoice commitments stay distinct from the richer application records used for checkout, dashboards, and later verification. Merchants still get a shareable payment flow grounded in the same invoice hash and salt path.', colorClass: 'text-cyan-400', bgClass: 'bg-cyan-500/8', borderClass: 'border-cyan-500/15', float: false },
                                 ].map((f, i) => (
                                     <FeatureCard key={i} {...f} delay={i * 0.1} />
                                 ))}
@@ -292,7 +292,7 @@ const Home = () => {
                                 {[
                                     { step: '01', title: 'Create Invoice', desc: 'The merchant enters the amount, memo, and invoice type. The browser generates a random 128-bit salt locally and commits the SHA-256 hash of merchant address, amount, and salt through the `create_invoice` circuit.', icon: FileText },
                                     { step: '02', title: 'Share Payment Link', desc: "The merchant shares a payment link containing the salt. The payer's client verifies the on-chain hash, confirming the invoice is authentic and unmodified.", icon: Globe },
-                                    { step: '03', title: 'Private Settlement', desc: "The payer executes a shielded payment on Midnight. Funds move to the merchant without revealing the payer's identity. Both parties receive encrypted receipts atomically.", icon: Lock },
+                                    { step: '03', title: 'Private Settlement', desc: "The payer executes the Midnight payment flow. Funds settle without a public-readable payment trail, and the app syncs settlement plus receipt evidence back into the merchant experience.", icon: Lock },
                                 ].map((s, i) => (
                                     <motion.div key={i} variants={fadeInUp}>
                                         <div className="flex flex-col items-center text-center p-8 rounded-2xl bg-[#080808] border border-white/[0.06] hover:border-[#7effcc]/25 hover:bg-[#0c0c0c] transition-all duration-500 group h-full relative overflow-hidden">
@@ -433,7 +433,7 @@ const Home = () => {
                                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#7effcc] via-[#5cd9a8] to-[#7effcc]">Midnight</span>
                             </h2>
                             <p className="text-white/40 text-lg max-w-2xl mx-auto mb-10 font-light leading-relaxed">
-                                AnonPay is the only invoice protocol combining full payment privacy with compliance-ready selective disclosure. Built for freelancers, small businesses, and privacy-conscious professionals.
+                                AnonPay brings private invoicing, hosted checkout, and selective disclosure into one Midnight-based merchant flow. Built for freelancers, small businesses, and privacy-conscious professionals.
                             </p>
                             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                                 <Link to="/explorer" className="enter-bliss-button group inline-flex items-center justify-center gap-3 px-8 py-4 text-black min-w-[200px]">

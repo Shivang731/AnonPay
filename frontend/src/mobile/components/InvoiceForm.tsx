@@ -5,6 +5,9 @@ import { Button } from '../../shared/components/ui/Button';
 import type { InvoiceType } from '../../shared/hooks/useCreateInvoice';
 import type { InvoiceItem } from '../../shared/types/invoice';
 
+const LEO_MEMO_MAX_BYTES = 31;
+const getUtf8ByteLength = (value: string) => new TextEncoder().encode(value).length;
+
 interface InvoiceFormProps {
     amount: number | '';
     setAmount: (val: number | '') => void;
@@ -52,6 +55,11 @@ export const MobileInvoiceForm: React.FC<InvoiceFormProps> = ({
     updateItem,
     removeItem
 }) => {
+    const memoBytes = getUtf8ByteLength(memo);
+    const memoTooLong = memoBytes > LEO_MEMO_MAX_BYTES;
+    const amountInvalid = invoiceType !== 'donation' && (!amount || Number(amount) <= 0);
+    const isError = status.toLowerCase().includes('error');
+
     return (
         <GlassCard variant="heavy" className="p-5">
             <h2 className="text-2xl font-bold text-white mb-6">Invoice Details</h2>
@@ -300,6 +308,9 @@ export const MobileInvoiceForm: React.FC<InvoiceFormProps> = ({
                     value={memo}
                     onChange={(e) => setMemo(e.target.value)}
                 />
+                <div className={`-mt-3 text-xs ${memoTooLong ? 'text-red-400' : 'text-gray-500'}`}>
+                    {memoBytes}/{LEO_MEMO_MAX_BYTES} bytes
+                </div>
 
                 <div className="w-full mt-4">
                     {!publicKey ? (
@@ -315,8 +326,8 @@ export const MobileInvoiceForm: React.FC<InvoiceFormProps> = ({
                             variant="primary"
                             className="w-full"
                             onClick={handleCreate}
-                            disabled={loading}
-                            glow={!loading}
+                            disabled={loading || memoTooLong || amountInvalid}
+                            glow={!loading && !memoTooLong && !amountInvalid}
                         >
                             {loading ? (
                                 <span className="flex items-center gap-2">
@@ -333,7 +344,7 @@ export const MobileInvoiceForm: React.FC<InvoiceFormProps> = ({
                 </div>
 
                 {status && (
-                    <div className={`p-4 rounded-xl text-center text-sm font-medium border ${status.includes('Error')
+                    <div className={`p-4 rounded-xl text-center text-sm font-medium border ${isError
                         ? 'bg-red-500/10 border-red-500/20 text-red-400'
                         : 'bg-neon-primary/10 border-neon-primary/20 text-neon-primary'
                         }`}>

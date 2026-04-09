@@ -18,6 +18,13 @@ export interface Invoice {
     invoice_transaction_id?: string;
     payment_tx_ids?: string[];
     payment_tx_id?: string;
+    payment_receipts?: {
+        receiptHash: string;
+        txId?: string;
+        amount: number;
+        tokenType: number;
+        timestamp?: number;
+    }[];
     expiry?: string;
     receipt_commitment?: string;
     created_at?: string;
@@ -37,6 +44,13 @@ export interface DisclosureProof {
     amount?: number;
     settled_at?: string;
     status?: string;
+}
+
+export interface InvoiceLookupResult {
+    invoice: Invoice;
+    match_type: 'invoice_hash' | 'invoice_id' | 'payment_tx_id' | 'receipt_hash' | 'unknown';
+    matched_value: string;
+    payment_tx_count: number;
 }
 
 export const fetchInvoices = async (status?: string): Promise<Invoice[]> => {
@@ -116,6 +130,20 @@ export const fetchDisclosureProof = async (proofId: string): Promise<DisclosureP
 
     if (!response.ok) {
         throw new Error(payload?.error || 'Failed to fetch disclosure proof');
+    }
+
+    return payload;
+};
+
+export const lookupInvoice = async (query: string): Promise<InvoiceLookupResult> => {
+    const url = new URL(`${API_URL}/invoices/lookup`);
+    url.searchParams.set('q', query.trim());
+
+    const response = await fetch(url.toString());
+    const payload = await response.json();
+
+    if (!response.ok) {
+        throw new Error(payload?.error || 'Failed to lookup invoice');
     }
 
     return payload;

@@ -33,6 +33,13 @@ interface InvoiceData {
     invoice_transaction_id?: string;
     payment_tx_ids?: string[];
     payment_tx_id?: string;
+    payment_receipts?: {
+        receiptHash: string;
+        txId?: string;
+        amount: number;
+        tokenType: number;
+        timestamp?: number;
+    }[];
     expiry?: string;
     receipt_commitment?: string;
     created_at?: string;

@@ -5,6 +5,9 @@ import { Button } from '../ui/Button';
 import { InvoiceType } from '../../hooks/useCreateInvoice';
 import { InvoiceItem } from '../../types/invoice';
 
+const LEO_MEMO_MAX_BYTES = 31;
+const getUtf8ByteLength = (value: string) => new TextEncoder().encode(value).length;
+
 interface InvoiceFormProps {
     amount: number | '';
     setAmount: (val: number | '') => void;
@@ -52,6 +55,11 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
     updateItem,
     removeItem
 }) => {
+    const memoBytes = getUtf8ByteLength(memo);
+    const memoTooLong = memoBytes > LEO_MEMO_MAX_BYTES;
+    const amountInvalid = invoiceType !== 'donation' && (!amount || Number(amount) <= 0);
+    const isError = status.toLowerCase().includes('error');
+
     return (
         <GlassCard variant="heavy" className="p-8">
             <h2 className="text-2xl font-bold text-white mb-6">Invoice Details</h2>
@@ -301,13 +309,16 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
                     value={memo}
                     onChange={(e) => setMemo(e.target.value)}
                 />
+                <div className={`-mt-3 text-xs ${memoTooLong ? 'text-red-400' : 'text-gray-500'}`}>
+                    {memoBytes}/{LEO_MEMO_MAX_BYTES} bytes
+                </div>
 
                 <Button
                     variant="primary"
                     className="w-full mt-4"
                     onClick={handleCreate}
-                    disabled={loading || !publicKey}
-                    glow={!loading && !!publicKey}
+                    disabled={loading || !publicKey || memoTooLong || amountInvalid}
+                    glow={!loading && !!publicKey && !memoTooLong && !amountInvalid}
                 >
                     {loading ? (
                         <span className="flex items-center gap-2">
@@ -324,7 +335,7 @@ export const InvoiceForm: React.FC<InvoiceFormProps> = ({
                 </Button>
 
                 {status && (
-                    <div className={`p-4 rounded-xl text-center text-sm font-medium border ${status.includes('Error')
+                    <div className={`p-4 rounded-xl text-center text-sm font-medium border ${isError
                         ? 'bg-red-500/10 border-red-500/20 text-red-400'
                         : 'bg-neon-primary/10 border-neon-primary/20 text-neon-primary'
                         }`}>

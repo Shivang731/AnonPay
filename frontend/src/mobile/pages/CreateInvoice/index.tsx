@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useCreateInvoice, InvoiceType } from '../../../shared/hooks/useCreateInvoice';
 import { MobileInvoiceForm } from '../../components/InvoiceForm';
@@ -9,7 +9,7 @@ import type { InvoiceData, InvoiceItem } from '../../../shared/types/invoice';
 import toast from 'react-hot-toast';
 
 const MobileCreateInvoice: React.FC = () => {
-    const { createInvoice, isLoading, error } = useCreateInvoice();
+    const { createInvoice, isLoading, error, status, resetCreateState } = useCreateInvoice();
     const { burnerAddress } = useBurnerWallet();
     const { walletAddress } = useMidnightWallet();
     const hasBurnerWallet = !!burnerAddress;
@@ -23,6 +23,18 @@ const MobileCreateInvoice: React.FC = () => {
     const [items, setItems] = useState<InvoiceItem[]>([]);
     const [showItems, setShowItems] = useState(false);
     const [invoiceData, setInvoiceData] = useState<InvoiceData | null>(null);
+
+    useEffect(() => {
+        if (walletType === 1 && forSdk) {
+            setForSdk(false);
+        }
+    }, [forSdk, walletType]);
+
+    useEffect(() => {
+        if (error) {
+            toast.error(error);
+        }
+    }, [error]);
 
     const addItem = useCallback(() => {
         setItems((prev) => [...prev, { name: '', quantity: 1, unitPrice: 0, total: 0 }]);
@@ -67,12 +79,11 @@ const MobileCreateInvoice: React.FC = () => {
 
         if (result) {
             setInvoiceData(result.invoiceData);
-        } else if (error) {
-            toast.error(error);
         }
-    }, [amount, createInvoice, error, forSdk, invoiceType, items, memo, showItems, walletType]);
+    }, [amount, createInvoice, forSdk, invoiceType, items, memo, showItems, walletType]);
 
     const resetInvoice = useCallback(() => {
+        resetCreateState();
         setInvoiceData(null);
         setAmount('');
         setMemo('');
@@ -81,7 +92,7 @@ const MobileCreateInvoice: React.FC = () => {
         setItems([]);
         setShowItems(false);
         setForSdk(false);
-    }, []);
+    }, [resetCreateState]);
 
     return (
         <div className="page-container relative min-h-screen pt-0 px-4">
@@ -115,7 +126,7 @@ const MobileCreateInvoice: React.FC = () => {
                                 handleCreate={handleCreate}
                                 loading={isLoading}
                                 publicKey={walletAddress}
-                                status={error || ''}
+                                status={error || status}
                                 invoiceType={invoiceType}
                                 setInvoiceType={setInvoiceType}
                                 walletType={walletType}

@@ -34,6 +34,7 @@ const DesktopAnimatedRoutes = () => {
                 <Route path="/docs" element={<Docs />} />
                 <Route path="/privacy" element={<Privacy />} />
                 <Route path="/verify" element={<Verification />} />
+                <Route path="/verify/:proofId" element={<Verification />} />
                 <Route path="/developer" element={<DeveloperPortal />} />
                 <Route path="/checkout/:id" element={<CheckoutPage />} />
                 <Route path="/invoice/:hash" element={<InvoiceDetails />} />

@@ -3,7 +3,8 @@ import { useMidnightWallet } from '../../../../hooks/Wallet/WalletProvider';
 import { useBurnerWallet } from '../../../../hooks/BurnerWalletProvider';
 import { encryptWithPassword, decryptWithPassword } from '../../../../utils/crypto';
 import { fetchAllPrivateBalances } from './scanner';
-import type { PrivateBalances, SweepCurrency } from './types';
+import type { PrivateBalances } from './types';
+import { generateBurnerWallet } from '../../../../utils/burner-crypto';
 
 export function useBurnerActions() {
     const { walletAddress } = useMidnightWallet();
@@ -13,57 +14,31 @@ export function useBurnerActions() {
         hasOnChainRecord, appPassword,
         decryptedBurnerAddress, hasBurnerOnChainRecord
     } = useBurnerWallet();
+    const networkId = (import.meta.env.VITE_NETWORK || 'preprod') as string;
 
     const [isGenerating, setIsGenerating] = useState(false);
     const [isDecrypting, setIsDecrypting] = useState(false);
-    const [isBackingUp] = useState(false);
-    const [backupSuccess, setBackupSuccess] = useState('');
-    const [backupTxId, setBackupTxId] = useState<string | null>(null);
-    const [isSweeping] = useState(false);
+    const [isRemoving, setIsRemoving] = useState(false);
     const [isScanningBalances, setIsScanningBalances] = useState(false);
     const [copied, setCopied] = useState(false);
+    const [copiedAddress, setCopiedAddress] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const [showGenerateModal, setShowGenerateModal] = useState(false);
     const [showUnlockModal, setShowUnlockModal] = useState(false);
-    const [showBackupModal, setShowBackupModal] = useState(false);
-    const [showSweepModal, setShowSweepModal] = useState(false);
+    const [showImportModal, setShowImportModal] = useState(false);
+    const [showRemoveModal, setShowRemoveModal] = useState(false);
 
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
-    const [sweepAmount, setSweepAmount] = useState('');
-    const [sweepCurrency, setSweepCurrency] = useState<SweepCurrency>('TDUST');
-    const [sweepDestination, setSweepDestination] = useState(walletAddress || '');
-
-    const [sweepSuccess, setSweepSuccess] = useState('');
-    const [sweepTxId, setSweepTxId] = useState<string | null>(null);
-    const [sweepLogs, setSweepLogs] = useState<string[]>([]);
 
     const [privateBalances, setPrivateBalances] = useState<PrivateBalances>({ TDUST: -1 });
 
     const logsEndRef = useRef<HTMLDivElement>(null);
 
-    const addLog = useCallback((msg: string) => {
-        setSweepLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`]);
+    const addLog = useCallback((_msg: string) => {
         setTimeout(() => logsEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
     }, []);
-
-    const openSweepModal = useCallback(() => {
-        setError(null);
-        setSweepLogs([]);
-        setSweepTxId(null);
-        setSweepSuccess('');
-        setPrivateBalances({ TDUST: -1 });
-        setSweepDestination(walletAddress || '');
-        setShowSweepModal(true);
-        if (decryptedBurnerKey) {
-            setIsScanningBalances(true);
-            fetchAllPrivateBalances(decryptedBurnerKey)
-                .then(setPrivateBalances)
-                .catch(() => setPrivateBalances({ TDUST: 0 }))
-                .finally(() => setIsScanningBalances(false));
-        }
-    }, [walletAddress, decryptedBurnerKey]);
 
     const fetchPrivateBalances = useCallback(async () => {
         if (!decryptedBurnerKey) return;
@@ -87,9 +62,9 @@ export function useBurnerActions() {
         try {
             setIsGenerating(true);
             setError(null);
-            // TODO: Generate Midnight keypair instead of Midnight PrivateKey
-            const newAddress = 'mn1...' + Math.random().toString(36).substring(2, 8);
-            const rawPrivateKeyStr = 'sk1...' + Math.random().toString(36).substring(2, 16);
+            const generatedWallet = generateBurnerWallet(networkId);
+            const newAddress = generatedWallet.address;
+            const rawPrivateKeyStr = generatedWallet.secret;
             const encryptedKeyPayload = await encryptWithPassword(rawPrivateKeyStr, appPassword);
             const encryptedBurnerAddress = await encryptWithPassword(newAddress, appPassword);
             const encryptedMainAddress = await encryptWithPassword(walletAddress, appPassword);
@@ -115,6 +90,9 @@ export function useBurnerActions() {
             setIsDecrypting(true);
             setError(null);
             const decryptedKey = await decryptWithPassword(encryptedBurnerKey, appPassword);
+            if (!/^[0-9a-fA-F]{64}$/.test(decryptedKey)) {
+                throw new Error('Invalid burner key payload.');
+            }
             setDecryptedBurnerKey(decryptedKey);
             setShowUnlockModal(false);
             setPassword('');
@@ -126,16 +104,6 @@ export function useBurnerActions() {
         }
     };
 
-    const handleBackupRecord = async (e?: React.FormEvent) => {
-        if (e) e.preventDefault();
-        setError('Backup not yet implemented for Midnight. Coming soon.');
-    };
-
-    const handleSweepFunds = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setError('Sweep not yet implemented for Midnight. Coming soon.');
-    };
-
     const handleCopyKey = () => {
         if (!decryptedBurnerKey) return;
         navigator.clipboard.writeText(decryptedBurnerKey);
@@ -143,25 +111,101 @@ export function useBurnerActions() {
         setTimeout(() => setCopied(false), 2000);
     };
 
+    const handleCopyAddress = () => {
+        const addressToCopy = decryptedBurnerAddress || burnerAddress;
+        if (!addressToCopy) return;
+        navigator.clipboard.writeText(addressToCopy);
+        setCopiedAddress(true);
+        setTimeout(() => setCopiedAddress(false), 2000);
+    };
+
+    const handleDownloadBackup = () => {
+        if (!burnerAddress || !encryptedBurnerKey || !walletAddress) {
+            setError('Burner wallet backup is not available yet.');
+            return;
+        }
+
+        const payload = {
+            version: 1,
+            exported_at: new Date().toISOString(),
+            main_wallet: walletAddress,
+            burner_address_encrypted: burnerAddress,
+            burner_address_plaintext: decryptedBurnerAddress || null,
+            burner_key_encrypted: encryptedBurnerKey,
+        };
+
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `anonpay-burner-backup-${Date.now()}.json`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        URL.revokeObjectURL(url);
+    };
+
+    const handleDownloadPlaintextBackup = () => {
+        if (!decryptedBurnerKey || !decryptedBurnerAddress || !walletAddress) {
+            setError('Unlock the burner wallet before exporting it.');
+            return;
+        }
+
+        const payload = {
+            version: 1,
+            exported_at: new Date().toISOString(),
+            main_wallet: walletAddress,
+            burner_address: decryptedBurnerAddress,
+            burner_secret_hex: decryptedBurnerKey,
+            network: networkId,
+        };
+
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `anonpay-burner-wallet-${Date.now()}.json`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        URL.revokeObjectURL(url);
+    };
+
+    const handleRemoveBurner = async () => {
+        if (!walletAddress) {
+            setError('Wallet not connected.');
+            return;
+        }
+
+        try {
+            setIsRemoving(true);
+            setError(null);
+            const { clearBurnerData } = await import('../../../../services/api');
+            await clearBurnerData(walletAddress);
+            setDecryptedBurnerKey(null);
+            await refreshProfile();
+            setShowRemoveModal(false);
+        } catch (err: any) {
+            setError(err.message || 'Failed to remove burner wallet.');
+        } finally {
+            setIsRemoving(false);
+        }
+    };
+
     return {
         walletAddress, burnerAddress, decryptedBurnerKey, fetchedFromChain, hasOnChainRecord,
         decryptedBurnerAddress, hasBurnerOnChainRecord,
-        isGenerating, isDecrypting, isBackingUp, isSweeping, copied,
+        isGenerating, isDecrypting, isRemoving, copied, copiedAddress,
         error, setError,
         showGenerateModal, setShowGenerateModal,
         showUnlockModal, setShowUnlockModal,
-        showBackupModal, setShowBackupModal,
-        showSweepModal, setShowSweepModal,
-        backupSuccess, setBackupSuccess, backupTxId, setBackupTxId,
+        showImportModal, setShowImportModal,
+        showRemoveModal, setShowRemoveModal,
         password, setPassword, showPassword, setShowPassword,
-        sweepAmount, setSweepAmount,
-        sweepCurrency, setSweepCurrency,
-        sweepDestination, setSweepDestination,
-        sweepSuccess, setSweepSuccess, sweepTxId, setSweepTxId,
-        sweepLogs, setSweepLogs, logsEndRef,
+        logsEndRef,
         privateBalances, setPrivateBalances, isScanningBalances,
-        handleGenerateBurner, handleUnlockBurner, handleBackupRecord,
-        handleSweepFunds, handleCopyKey, fetchPrivateBalances, openSweepModal,
+        handleGenerateBurner, handleUnlockBurner,
+        handleCopyKey, handleCopyAddress, handleDownloadBackup, handleDownloadPlaintextBackup, handleRemoveBurner, fetchPrivateBalances,
         addLog,
     };
 }

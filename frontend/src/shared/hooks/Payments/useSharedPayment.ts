@@ -9,6 +9,8 @@ import {
     computeInvoiceHash,
     hexToBytes,
     bytesToHex,
+    bytesToFieldString,
+    generateSalt,
     CONTRACT_ADDRESS,
 } from '../../utils/midnight-utils';
 import { Contract, InvoiceStatus } from '../../../contract';
@@ -37,6 +39,109 @@ export const useSharedPayment = () => {
 
     const toMicroUnits = (value?: string | number | null) =>
         BigInt(Math.round((Number(value) || 0) * 1_000_000));
+
+    const pollResolvedInvoiceId = async (invoiceHash: string, invoiceTransactionId: string) => {
+        for (let attempt = 0; attempt < 20; attempt += 1) {
+            const response = await fetch(`${API_URL}/mcp/relay/resolve-invoice`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    invoice_hash: invoiceHash,
+                    invoice_transaction_id: invoiceTransactionId,
+                }),
+            });
+
+            if (response.ok) {
+                const payload = await response.json();
+                if (payload?.invoice_id) {
+                    return String(payload.invoice_id);
+                }
+            }
+
+            await wait(1500);
+        }
+
+        throw new Error('Timed out waiting for Midnight to finalize the payment invoice.');
+    };
+
+    const createOneTimePaymentInvoice = async (
+        parentInvoice: InvoiceState,
+        amount: number,
+    ) => {
+        if (!parentInvoice.merchantAddress) {
+            throw new Error('Missing merchant address for reusable invoice payment.');
+        }
+
+        const saltBytes = generateSalt();
+        const saltHex = bytesToHex(saltBytes);
+        const saltField = bytesToFieldString(saltBytes);
+        const amountMicro = BigInt(Math.round(amount * 1_000_000));
+        const invoiceHashHex = bytesToHex(
+            await computeInvoiceHash(parentInvoice.merchantAddress, amountMicro, saltBytes),
+        );
+
+        const relayResponse = await fetch(`${API_URL}/mcp/relay/create-invoice`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                merchant_address: parentInvoice.merchantAddress,
+                amount,
+                currency: 'TDUST',
+                salt: saltField,
+                memo: parentInvoice.memo || '',
+                invoice_type: 0,
+            }),
+        });
+
+        if (!relayResponse.ok) {
+            const payload = await relayResponse.json().catch(() => ({}));
+            throw new Error(payload.error || 'Failed to create reusable payment invoice.');
+        }
+
+        const relayPayload = await relayResponse.json();
+        const invoiceId = await pollResolvedInvoiceId(invoiceHashHex, relayPayload.tx_id);
+
+        return {
+            invoiceId,
+            invoiceHash: invoiceHashHex,
+            saltHex,
+            creationTxId: relayPayload.tx_id as string,
+        };
+    };
+
+    const appendReceiptToReusableInvoice = async (
+        parentInvoice: InvoiceState,
+        receiptHash: string,
+        txId: string,
+        amountMicro: number,
+    ) => {
+        const { updateInvoiceStatus } = await import('../../services/api');
+        const dbInvoice = await fetchDbInvoice(parentInvoice.hash);
+        if (!dbInvoice) {
+            throw new Error('Failed to reload parent invoice before recording receipt.');
+        }
+
+        const currentPaymentIds = Array.isArray(dbInvoice.payment_tx_ids) ? dbInvoice.payment_tx_ids : [];
+        const nextPaymentIds = Array.from(new Set([...currentPaymentIds, txId]));
+        const existingReceipts = Array.isArray(dbInvoice.payment_receipts) ? dbInvoice.payment_receipts : [];
+        const nextReceipts = existingReceipts.some((entry) => entry.receiptHash === receiptHash)
+            ? existingReceipts
+            : [
+                ...existingReceipts,
+                {
+                    receiptHash,
+                    txId,
+                    amount: amountMicro,
+                    tokenType: parentInvoice.tokenType,
+                    timestamp: Date.now(),
+                },
+            ];
+
+        await updateInvoiceStatus(parentInvoice.hash, {
+            payment_tx_ids: nextPaymentIds,
+            payment_receipts: nextReceipts,
+        });
+    };
 
     const fetchDbInvoice = async (hash: string): Promise<Invoice | null> => {
         try {
@@ -242,7 +347,10 @@ export const useSharedPayment = () => {
                     statusOpen: !dbInvoice || (!isExpiredInvoice && dbInvoice.status !== 'SETTLED'),
                 };
 
-                if (dbInvoice && dbInvoice.status === 'SETTLED') {
+                const isReusableInvoice =
+                    !!dbInvoice && (dbInvoice.invoice_type === 1 || dbInvoice.invoice_type === 2);
+
+                if (dbInvoice && dbInvoice.status === 'SETTLED' && !isReusableInvoice) {
                     if (dbInvoice.payment_tx_id) {
                         setTxId(dbInvoice.payment_tx_id);
                     }
@@ -612,7 +720,10 @@ export const useSharedPayment = () => {
             if (dbInvoice.invoice_id && dbInvoice.invoice_id !== activeInvoiceId) {
                 throw new Error('Invoice ID mismatch. Refusing to continue.');
             }
-            if (dbInvoice.status === 'SETTLED') {
+            const isReusableInvoice =
+                dbInvoice.invoice_type === 1 || dbInvoice.invoice_type === 2;
+
+            if (dbInvoice.status === 'SETTLED' && !isReusableInvoice) {
                 setStep('ALREADY_PAID');
                 throw new Error('This invoice is already settled.');
             }
@@ -633,6 +744,16 @@ export const useSharedPayment = () => {
                 }
             }
 
+            let payableInvoiceId = invoiceId;
+            let parentInvoiceHash = invoice.hash;
+
+            if (isReusableInvoice) {
+                setStatus('Creating a one-time payment invoice for this reusable link...');
+                const childInvoice = await createOneTimePaymentInvoice(invoice, finalAmount);
+                payableInvoiceId = BigInt(childInvoice.invoiceId);
+                setStatus('Reusable link prepared. Waiting for wallet approval...');
+            }
+
             const payerSecretKey = crypto.getRandomValues(new Uint8Array(32));
             const payerNonce = crypto.getRandomValues(new Uint8Array(32));
             const contract = new Contract({
@@ -648,7 +769,7 @@ export const useSharedPayment = () => {
             try {
                 const statusResult = await contract.circuits.get_invoice_status(
                     context,
-                    invoiceId,
+                    payableInvoiceId,
                 );
                 if (statusResult.result === InvoiceStatus.PAID) {
                     setStep('ALREADY_PAID');
@@ -685,7 +806,7 @@ export const useSharedPayment = () => {
             setStatus('Lace wallet approval required for shielded tDUST payment...');
             const result = await contract.circuits.pay_invoice(
                 context,
-                invoiceId,
+                payableInvoiceId,
             );
 
             const receiptCommitmentBytes = (contract as any)._computeCommitment_0(
@@ -713,11 +834,50 @@ export const useSharedPayment = () => {
             } : current);
             setStatus('Shielded payment submitted. Waiting for Midnight confirmation...');
 
-            await pollTransaction(
-                resultTxId,
-                receiptCommitment,
-                Math.round(finalAmount * 1_000_000),
-            );
+            const paidAmountMicro = Math.round(finalAmount * 1_000_000);
+
+            if (isReusableInvoice) {
+                await appendReceiptToReusableInvoice(
+                    invoice,
+                    receiptCommitment,
+                    resultTxId,
+                    paidAmountMicro,
+                );
+                persistPayerReceipt({
+                    invoiceHash: parentInvoiceHash,
+                    amount: paidAmountMicro,
+                    tokenType: invoice.tokenType,
+                    receiptHash: receiptCommitment,
+                    timestamp: Date.now(),
+                    txId: resultTxId,
+                });
+                setStep('SUCCESS');
+                setStatus('Payment successful. The reusable link remains open for future payments.');
+
+                if (invoice.sessionId) {
+                    try {
+                        await fetch(
+                            `${API_URL}/checkout/sessions/${invoice.sessionId}`,
+                            {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    status: 'SETTLED',
+                                    tx_id: resultTxId,
+                                }),
+                            },
+                        );
+                    } catch (checkoutErr) {
+                        console.error('❌ Failed to update checkout session:', checkoutErr);
+                    }
+                }
+            } else {
+                await pollTransaction(
+                    resultTxId,
+                    receiptCommitment,
+                    paidAmountMicro,
+                );
+            }
         } catch (err: any) {
             if (handleWalletError(err)) return;
             console.error(err);

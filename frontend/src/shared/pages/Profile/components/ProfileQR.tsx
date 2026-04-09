@@ -27,13 +27,13 @@ export const ProfileQR: React.FC<ProfileQRProps> = ({ initialMainReceipts, initi
     const { walletAddress } = useMidnightWallet();
     const { initialized, loading, status, mainHash, mainSalt, burnerHash, burnerSalt, initializeQRs } = useProfileQR();
     const { unifiedPayments } = useProfilePayments(mainHash, burnerHash, initialMainReceipts, initialBurnerReceipts);
-    const { burnerAddress } = useBurnerWallet();
+    const { burnerAddress, decryptedBurnerAddress } = useBurnerWallet();
     const [qrType, setQrType] = useState<'direct' | 'private'>('direct');
 
-    const hasBurner = !!burnerAddress && !!burnerHash;
+    const hasBurner = !!decryptedBurnerAddress && !!burnerHash;
     const activeHash = qrType === 'private' && hasBurner ? burnerHash : mainHash;
     const activeSalt = qrType === 'private' && hasBurner ? burnerSalt : mainSalt;
-    const activeMerchant = qrType === 'private' && hasBurner ? burnerAddress : walletAddress;
+    const activeMerchant = qrType === 'private' && hasBurner ? decryptedBurnerAddress : walletAddress;
 
     // The payment link logic
     const baseUrl = window.location.origin;
@@ -122,7 +122,7 @@ export const ProfileQR: React.FC<ProfileQRProps> = ({ initialMainReceipts, initi
                     onClick={() => {
                         if (hasBurner) {
                             setQrType('private');
-                        } else if (burnerAddress && !burnerHash) {
+                        } else if (decryptedBurnerAddress && !burnerHash) {
                             setQrType('private');
                             // Auto trigger Burner QR creation since they haven't generated it yet
                             initializeQRs();

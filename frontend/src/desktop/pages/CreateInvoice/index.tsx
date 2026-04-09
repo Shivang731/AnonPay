@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { pageVariants } from '../../../shared/utils/animations';
 import { useCreateInvoice, type InvoiceType } from '../../../shared/hooks/useCreateInvoice';
@@ -10,7 +10,7 @@ import { useMidnightWallet } from '../../../shared/hooks/Wallet/WalletProvider';
 import type { InvoiceData, InvoiceItem } from '../../../shared/types/invoice';
 
 export const CreateInvoice: React.FC = () => {
-    const { createInvoice, isLoading, error } = useCreateInvoice();
+    const { createInvoice, isLoading, error, status, resetCreateState } = useCreateInvoice();
     const { burnerAddress } = useBurnerWallet();
     const { walletAddress } = useMidnightWallet();
     const hasBurnerWallet = !!burnerAddress;
@@ -23,6 +23,12 @@ export const CreateInvoice: React.FC = () => {
     const [items, setItems] = useState<InvoiceItem[]>([]);
     const [showItems, setShowItems] = useState(false);
     const [invoiceData, setInvoiceData] = useState<InvoiceData | null>(null);
+
+    useEffect(() => {
+        if (walletType === 1 && forSdk) {
+            setForSdk(false);
+        }
+    }, [forSdk, walletType]);
 
     const addItem = useCallback(() => {
         setItems((prev) => [...prev, { name: '', quantity: 1, unitPrice: 0, total: 0 }]);
@@ -73,6 +79,7 @@ export const CreateInvoice: React.FC = () => {
     }, [amount, createInvoice, forSdk, invoiceType, items, memo, showItems, walletType]);
 
     const resetInvoice = useCallback(() => {
+        resetCreateState();
         setInvoiceData(null);
         setAmount('');
         setMemo('');
@@ -81,7 +88,7 @@ export const CreateInvoice: React.FC = () => {
         setForSdk(false);
         setItems([]);
         setShowItems(false);
-    }, []);
+    }, [resetCreateState]);
 
     return (
         <motion.div
@@ -99,7 +106,7 @@ export const CreateInvoice: React.FC = () => {
 
             <div className="absolute top-[-150px] left-1/2 -translate-x-1/2 w-screen h-[800px] z-0 pointer-events-none flex justify-center overflow-hidden">
                 <img
-                    src="/assets/anonpay_globe.png"
+                    src="/assets/anonpay_globe02.webp"
                     alt="Midnight Network"
                     className="w-full h-full object-cover opacity-50 mix-blend-screen mask-image-gradient-b"
                     style={{
@@ -139,7 +146,7 @@ export const CreateInvoice: React.FC = () => {
                                 handleCreate={handleCreate}
                                 loading={isLoading}
                                 publicKey={walletAddress}
-                                status={error || ''}
+                                status={error || status}
                                 invoiceType={invoiceType}
                                 setInvoiceType={setInvoiceType}
                                 walletType={walletType}

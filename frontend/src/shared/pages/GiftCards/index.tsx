@@ -52,10 +52,10 @@ export const GiftCardsPage: React.FC = () => {
                 </p>
                 <div className="max-w-xl rounded-2xl border border-orange-400/20 bg-orange-500/10 px-5 py-4 text-left">
                     <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-orange-300 mb-2">
-                        Experimental Flow
+                        Experimental Surface
                     </p>
                     <p className="text-sm text-white/80 leading-relaxed">
-                        The main deliverable for this hackathon is private invoicing and checkout. This page remains available for experimentation, but it is not the primary surface judges should use to evaluate the product.
+                        AnonPay is centered on private invoicing and checkout. Gift Cards remains available as a lightweight experimental flow for exploring alternative payment formats inside the product.
                     </p>
                 </div>
             </motion.div>

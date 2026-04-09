@@ -26,10 +26,48 @@ const PAYER_RECEIPTS_STORAGE_KEY = 'anonpay:payer-receipts';
 export const normalizeInvoiceHash = (hash?: string | null) =>
     String(hash || '').replace(/field$/, '');
 
+const parseReceiptCommitmentValues = (value?: string | string[] | null): string[] => {
+    if (!value) {
+        return [];
+    }
+
+    if (Array.isArray(value)) {
+        return value.map((entry) => String(entry || '').trim()).filter(Boolean);
+    }
+
+    const text = String(value).trim();
+    if (!text) {
+        return [];
+    }
+
+    if (text.startsWith('[') && text.endsWith(']')) {
+        try {
+            const parsed = JSON.parse(text);
+            return Array.isArray(parsed)
+                ? parsed.map((entry) => String(entry || '').trim()).filter(Boolean)
+                : [];
+        } catch {
+            return [];
+        }
+    }
+
+    return [text];
+};
+
 type InvoiceLike = {
     invoice_hash: string;
     payment_tx_ids?: string[];
     payment_tx_id?: string;
+    payment_receipts?: {
+        receiptHash?: string;
+        receipt_hash?: string;
+        amount?: number;
+        tokenType?: number;
+        token_type?: number;
+        txId?: string;
+        tx_id?: string;
+        timestamp?: number;
+    }[];
     receipt_commitment?: string;
     amount?: number;
     token_type?: number;
@@ -67,11 +105,24 @@ export const deriveInvoiceRecordFromDbInvoice = (invoice: InvoiceLike): DerivedI
 });
 
 export const deriveMerchantReceiptsFromInvoice = (invoice: InvoiceLike): DerivedReceipt[] => {
+    if (Array.isArray(invoice.payment_receipts) && invoice.payment_receipts.length > 0) {
+        return invoice.payment_receipts
+            .map((receipt) => ({
+                invoiceHash: normalizeInvoiceHash(invoice.invoice_hash),
+                amount: Number(receipt.amount) || 0,
+                tokenType: receipt.tokenType ?? receipt.token_type ?? invoice.token_type ?? 0,
+                receiptHash: String(receipt.receiptHash || receipt.receipt_hash || ''),
+                timestamp: receipt.timestamp || Date.parse(invoice.updated_at || invoice.created_at || '') || Date.now(),
+            }))
+            .filter((receipt) => Boolean(receipt.receiptHash));
+    }
+
+    const fallbackReceiptHashes = parseReceiptCommitmentValues(invoice.receipt_commitment);
     const paymentIds = getInvoicePaymentIds(invoice);
-    const receiptHashes = paymentIds.length > 0
-        ? paymentIds
-        : invoice.receipt_commitment
-            ? [invoice.receipt_commitment]
+    const receiptHashes = fallbackReceiptHashes.length > 0
+        ? fallbackReceiptHashes
+        : paymentIds.length > 0
+            ? paymentIds
             : [];
 
     if (receiptHashes.length === 0) {
