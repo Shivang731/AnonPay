@@ -1,3 +1,4 @@
+import { Buffer } from 'buffer';
 import { ZswapSecretKeys } from '@midnight-ntwrk/ledger-v8';
 import {
     MidnightBech32m,
@@ -112,8 +113,8 @@ export function generateBurnerWallet(networkId: NetworkId): GeneratedBurnerWalle
     const secretKeys = ZswapSecretKeys.fromSeed(seed);
 
     const shieldedAddress = new ShieldedAddress(
-        new ShieldedCoinPublicKey(hexToBytes(secretKeys.coinPublicKey)),
-        new ShieldedEncryptionPublicKey(hexToBytes(secretKeys.encryptionPublicKey)),
+        new ShieldedCoinPublicKey(Buffer.from(hexToBytes(secretKeys.coinPublicKey))),
+        new ShieldedEncryptionPublicKey(Buffer.from(hexToBytes(secretKeys.encryptionPublicKey))),
     );
 
     return {
