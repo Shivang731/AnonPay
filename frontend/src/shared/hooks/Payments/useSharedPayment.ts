@@ -14,6 +14,7 @@ import {
 import { Contract, InvoiceStatus } from '../../../contract';
 import { API_URL } from '../../config/api';
 import { persistPayerReceipt } from '../../utils/receipts';
+import type { Invoice } from '../../services/api';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
@@ -29,11 +30,38 @@ export const useSharedPayment = () => {
     const [txId, setTxId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
 
+    const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
     const isPlainAddress = (value?: string | null) =>
         !!value && !value.includes(':') && !value.includes(' ');
 
     const toMicroUnits = (value?: string | number | null) =>
         BigInt(Math.round((Number(value) || 0) * 1_000_000));
+
+    const fetchDbInvoice = async (hash: string): Promise<Invoice | null> => {
+        try {
+            const { fetchInvoiceByHash } = await import('../../services/api');
+            return await fetchInvoiceByHash(hash);
+        } catch (error) {
+            return null;
+        }
+    };
+
+    const resolveInvoiceId = async (invoiceHash: string, currentInvoiceId?: string) => {
+        if (currentInvoiceId) {
+            return { invoiceId: currentInvoiceId, dbInvoice: null as Invoice | null };
+        }
+
+        for (let attempt = 0; attempt < 8; attempt += 1) {
+            const dbInvoice = await fetchDbInvoice(invoiceHash);
+            if (dbInvoice?.invoice_id) {
+                return { invoiceId: dbInvoice.invoice_id, dbInvoice };
+            }
+            await wait(1500);
+        }
+
+        return { invoiceId: undefined, dbInvoice: null as Invoice | null };
+    };
 
     useEffect(() => {
         const init = async () => {
@@ -61,41 +89,36 @@ export const useSharedPayment = () => {
                     isPlainAddress(merchant) ? merchant : null;
 
                 if (fetchedHash && (!merchant || !salt)) {
-                    try {
-                        const { fetchInvoiceByHash } = await import(
-                            '../../services/api'
-                        );
-                        const dbInvoice = await fetchInvoiceByHash(fetchedHash);
-                        if (dbInvoice) {
-                            merchant =
-                                dbInvoice.designated_address ||
-                                dbInvoice.merchant_address ||
-                                null;
-                            merchantAddressForVerification =
-                                merchantAddressForVerification ||
-                                (isPlainAddress(dbInvoice.designated_address)
-                                    ? dbInvoice.designated_address!
-                                    : isPlainAddress(dbInvoice.merchant_address)
-                                        ? dbInvoice.merchant_address
-                                        : null);
-                            salt = dbInvoice.salt || null;
+                    const dbInvoice = await fetchDbInvoice(fetchedHash);
+                    if (dbInvoice) {
+                        merchant =
+                            dbInvoice.designated_address ||
+                            dbInvoice.merchant_address ||
+                            null;
+                        merchantAddressForVerification =
+                            merchantAddressForVerification ||
+                            (isPlainAddress(dbInvoice.designated_address)
+                                ? dbInvoice.designated_address!
+                                : isPlainAddress(dbInvoice.merchant_address)
+                                    ? dbInvoice.merchant_address
+                                    : null);
+                        salt = dbInvoice.salt || null;
 
-                            const coercedAmount = dbInvoice.amount
-                                ? dbInvoice.amount.toString()
-                                : amount;
-                            amount =
-                                dbInvoice.invoice_type === 2
-                                    ? '0'
-                                    : coercedAmount || null;
-                            initialType =
-                                dbInvoice.invoice_type !== undefined
-                                    ? dbInvoice.invoice_type
-                                    : initialType;
-                        }
-                    } catch (e) {
+                        const coercedAmount = dbInvoice.amount
+                            ? dbInvoice.amount.toString()
+                            : amount;
+                        amount =
+                            dbInvoice.invoice_type === 2
+                                ? '0'
+                                : coercedAmount || null;
+                        initialType =
+                            dbInvoice.invoice_type !== undefined
+                                ? dbInvoice.invoice_type
+                                : initialType;
+                    } else {
                         console.warn(
                             'Could not fetch missing DB details for Hash-only link',
-                            e,
+                            fetchedHash,
                         );
                     }
                 }
@@ -148,12 +171,10 @@ export const useSharedPayment = () => {
 
                 const merchantLabel = merchant || 'Private Merchant';
 
-                let dbInvoice = null;
-                try {
-                    const { fetchInvoiceByHash } = await import(
-                        '../../services/api'
-                    );
-                    dbInvoice = await fetchInvoiceByHash(fetchedHash);
+                const dbInvoice = await fetchDbInvoice(fetchedHash);
+                if (!dbInvoice) {
+                    console.warn('Could not fetch DB details', fetchedHash);
+                } else {
                     merchantAddressForVerification =
                         merchantAddressForVerification ||
                         (isPlainAddress(dbInvoice?.designated_address)
@@ -161,8 +182,6 @@ export const useSharedPayment = () => {
                             : isPlainAddress(dbInvoice?.merchant_address)
                                 ? dbInvoice?.merchant_address
                                 : null);
-                } catch (e) {
-                    console.warn('Could not fetch DB details', e);
                 }
 
                 if (!amount && initialType !== 2 && dbInvoice?.amount === undefined) {
@@ -449,7 +468,7 @@ export const useSharedPayment = () => {
                 setStatus('Payment Successful!');
 
                 try {
-                    const { updateInvoiceStatus, fetchInvoiceByHash } =
+                    const { updateInvoiceStatus } =
                         await import('../../services/api');
                     console.log('📝 [usePayment] Updating Invoice in DB...', {
                         onChainId,
@@ -469,7 +488,7 @@ export const useSharedPayment = () => {
                     }
 
                     if (invoice?.hash) {
-                        const currentDbInvoice = await fetchInvoiceByHash(
+                        const currentDbInvoice = await fetchDbInvoice(
                             invoice.hash,
                         );
                         if (
@@ -547,14 +566,27 @@ export const useSharedPayment = () => {
             return;
         }
 
-        if (!invoice.invoiceId) {
-            setError('This invoice is missing its on-chain invoice ID and cannot be paid.');
-            return;
-        }
-
         try {
             setLoading(true);
             setStatus('Fetching private invoice details...');
+
+            let activeInvoiceId = invoice.invoiceId;
+            let latestDbInvoice = null;
+
+            if (!activeInvoiceId) {
+                setStatus('Resolving on-chain invoice setup...');
+                const resolved = await resolveInvoiceId(invoice.hash, invoice.invoiceId);
+                activeInvoiceId = resolved.invoiceId;
+                latestDbInvoice = resolved.dbInvoice;
+            }
+
+            if (!activeInvoiceId) {
+                throw new Error('This invoice is still finalizing on Midnight. Retry in a few seconds.');
+            }
+
+            if (activeInvoiceId !== invoice.invoiceId) {
+                setInvoice((current) => current ? { ...current, invoiceId: activeInvoiceId } : current);
+            }
 
             const isDonationType =
                 invoice.invoiceType === 2 || invoice.amount === 0;
@@ -566,19 +598,18 @@ export const useSharedPayment = () => {
             if (finalAmount <= 0)
                 throw new Error('Amount must be greater than zero.');
 
-            const invoiceId = BigInt(invoice.invoiceId);
+            const invoiceId = BigInt(activeInvoiceId);
             if (invoice.expiry && Number(invoice.expiry) * 1000 <= Date.now()) {
                 throw new Error('This invoice has expired.');
             }
 
             setStatus('Verifying invoice integrity...');
 
-            const { fetchInvoiceByHash } = await import('../../services/api');
-            const dbInvoice = await fetchInvoiceByHash(invoice.hash);
+            const dbInvoice = latestDbInvoice || await fetchDbInvoice(invoice.hash);
             if (!dbInvoice || dbInvoice.invoice_hash !== invoice.hash) {
                 throw new Error('Invoice hash mismatch. Refusing to continue.');
             }
-            if (dbInvoice.invoice_id && dbInvoice.invoice_id !== invoice.invoiceId) {
+            if (dbInvoice.invoice_id && dbInvoice.invoice_id !== activeInvoiceId) {
                 throw new Error('Invoice ID mismatch. Refusing to continue.');
             }
             if (dbInvoice.status === 'SETTLED') {

@@ -56,6 +56,319 @@ function computeInvoiceCommitmentHex({ merchantAddress, amount, saltHex }) {
     return crypto.createHash('sha256').update(combined).digest('hex');
 }
 
+function normalizeInvoiceStatus(value, fallback = 'PENDING') {
+    const normalized = String(value || '').trim().toUpperCase();
+
+    if (!normalized) return fallback;
+    if (normalized === 'SETTLED' || normalized === 'PAID' || normalized === 'CLAIMED') return 'SETTLED';
+    if (normalized === 'EXPIRED') return 'EXPIRED';
+    if (normalized === 'FAILED') return 'FAILED';
+    if (normalized === 'OPEN' || normalized === 'PROCESSING' || normalized === 'PENDING') return 'PENDING';
+
+    return normalized;
+}
+
+function parseUintLike(value) {
+    if (value === null || value === undefined) return null;
+
+    if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
+        return String(Math.trunc(value));
+    }
+
+    if (typeof value === 'bigint' && value >= 0n) {
+        return value.toString();
+    }
+
+    const text = String(value).trim();
+    if (!text) return null;
+
+    const match = text.match(/^(\d+)(?:u\d+|field)?$/i);
+    return match ? match[1] : null;
+}
+
+function extractNamedValue(node, targetName) {
+    if (!node || typeof node !== 'object') return null;
+
+    if (Array.isArray(node)) {
+        for (const item of node) {
+            const result = extractNamedValue(item, targetName);
+            if (result !== null) return result;
+        }
+        return null;
+    }
+
+    if (
+        typeof node.name === 'string' &&
+        node.name.toLowerCase() === targetName.toLowerCase() &&
+        node.value !== undefined
+    ) {
+        return node.value;
+    }
+
+    for (const child of Object.values(node)) {
+        const result = extractNamedValue(child, targetName);
+        if (result !== null) return result;
+    }
+
+    return null;
+}
+
+function extractCreateInvoiceResult(tx) {
+    const directCandidates = [
+        tx?.result,
+        tx?.output,
+        tx?.returnValue,
+        tx?.return_value,
+        tx?.proofData?.output?.value,
+    ];
+
+    for (const candidate of directCandidates) {
+        const parsed = parseUintLike(candidate);
+        if (parsed !== null) return parsed;
+    }
+
+    const namedCandidates = [
+        extractNamedValue(tx?.outputs, 'invoice_id'),
+        extractNamedValue(tx?.result, 'invoice_id'),
+        extractNamedValue(tx?.output, 'invoice_id'),
+    ];
+
+    for (const candidate of namedCandidates) {
+        const parsed = parseUintLike(candidate);
+        if (parsed !== null) return parsed;
+    }
+
+    return null;
+}
+
+function transactionMatchesInvoice(tx, invoiceHash, invoiceTransactionId) {
+    if (!tx || typeof tx !== 'object') return false;
+
+    const normalizedTxId = String(invoiceTransactionId || '').trim();
+    if (normalizedTxId && String(tx.txHash || tx.id || '').trim() === normalizedTxId) {
+        return true;
+    }
+
+    const inputHash = extractNamedValue(tx.inputs, 'invoice_hash');
+    return !!inputHash && String(inputHash).replace(/^0x/, '').toLowerCase() === String(invoiceHash || '').replace(/^0x/, '').toLowerCase();
+}
+
+async function fetchIndexerTransactionsForInvoiceResolution(indexerUrl, contractAddress, invoiceTransactionId) {
+    const queryCandidates = [
+        {
+            query: `
+                query ($address: String!, $limit: Int!) {
+                    transactions(contractAddress: $address, limit: $limit, orderBy: { blockHeight: DESC }) {
+                        nodes {
+                            txHash
+                            blockHeight
+                            circuit
+                            result
+                            inputs {
+                                name
+                                value
+                            }
+                        }
+                    }
+                }
+            `,
+            variables: { address: contractAddress, limit: 100 }
+        },
+        {
+            query: `
+                query ($address: String!, $limit: Int!) {
+                    transactions(contractAddress: $address, limit: $limit, orderBy: { blockHeight: DESC }) {
+                        nodes {
+                            txHash
+                            blockHeight
+                            circuit
+                            output
+                            inputs {
+                                name
+                                value
+                            }
+                        }
+                    }
+                }
+            `,
+            variables: { address: contractAddress, limit: 100 }
+        },
+        {
+            query: `
+                query ($address: String!, $limit: Int!) {
+                    transactions(contractAddress: $address, limit: $limit, orderBy: { blockHeight: DESC }) {
+                        nodes {
+                            txHash
+                            blockHeight
+                            circuit
+                            outputs {
+                                name
+                                value
+                            }
+                            inputs {
+                                name
+                                value
+                            }
+                        }
+                    }
+                }
+            `,
+            variables: { address: contractAddress, limit: 100 }
+        }
+    ];
+
+    for (const candidate of queryCandidates) {
+        try {
+            const response = await fetch(indexerUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(candidate)
+            });
+
+            if (!response.ok) {
+                continue;
+            }
+
+            const payload = await response.json();
+            const transactions = payload?.data?.transactions?.nodes;
+            if (Array.isArray(transactions)) {
+                if (invoiceTransactionId) {
+                    const exactMatch = transactions.find((tx) => String(tx?.txHash || '') === String(invoiceTransactionId));
+                    if (exactMatch) {
+                        return transactions;
+                    }
+                }
+                return transactions;
+            }
+        } catch (error) {
+            console.warn('[invoice-resolution] indexer query failed:', error.message);
+        }
+    }
+
+    return [];
+}
+
+async function maybeResolveInvoiceId(invoice) {
+    if (!invoice || invoice.invoice_id) {
+        return invoice;
+    }
+
+    const indexerUrl = process.env.MIDNIGHT_INDEXER_URL;
+    const contractAddress = process.env.ANONPAY_CONTRACT_ADDRESS;
+
+    if (!indexerUrl || !contractAddress) {
+        return invoice;
+    }
+
+    try {
+        const transactions = await fetchIndexerTransactionsForInvoiceResolution(
+            indexerUrl,
+            contractAddress,
+            invoice.invoice_transaction_id,
+        );
+
+        const matchedTx = transactions.find((tx) =>
+            String(tx?.circuit || '').startsWith('create_invoice') &&
+            transactionMatchesInvoice(tx, invoice.invoice_hash, invoice.invoice_transaction_id)
+        );
+
+        const resolvedInvoiceId = extractCreateInvoiceResult(matchedTx);
+        if (!resolvedInvoiceId) {
+            return invoice;
+        }
+
+        const updates = {
+            invoice_id: resolvedInvoiceId,
+            updated_at: new Date().toISOString()
+        };
+
+        if (matchedTx?.blockHeight) {
+            updates.block_height = Number(matchedTx.blockHeight);
+        }
+
+        const { data: updated, error } = await supabase
+            .from('invoices')
+            .update(updates)
+            .eq('invoice_hash', invoice.invoice_hash)
+            .select('*')
+            .single();
+
+        if (error) {
+            console.warn('[invoice-resolution] failed to persist invoice id:', error.message);
+            return {
+                ...invoice,
+                ...updates
+            };
+        }
+
+        return updated || {
+            ...invoice,
+            ...updates
+        };
+    } catch (error) {
+        console.warn('[invoice-resolution] unexpected error:', error.message);
+        return invoice;
+    }
+}
+
+function normalizeInvoiceRecord(invoice) {
+    if (!invoice || typeof invoice !== 'object') {
+        return invoice;
+    }
+
+    return {
+        ...invoice,
+        status: normalizeInvoiceStatus(invoice.status),
+    };
+}
+
+function buildWebhookPayload(intent, txId = null) {
+    return {
+        id: intent.id,
+        amount: intent.amount,
+        token_type: intent.token_type,
+        status: intent.status,
+        tx_id: txId,
+        timestamp: new Date().toISOString()
+    };
+}
+
+async function dispatchMerchantWebhook(intent, txId = null, contextLabel = 'session') {
+    const merchant = intent?.merchants;
+    if (!merchant?.encrypted_webhook_url) {
+        return false;
+    }
+
+    const secretKey = readMerchantStoredValue(merchant.encrypted_secret_key);
+    const webhookUrl = readMerchantStoredValue(merchant.encrypted_webhook_url);
+    if (!secretKey || !webhookUrl) {
+        return false;
+    }
+
+    const payloadString = JSON.stringify(buildWebhookPayload(intent, txId));
+    const signature = crypto
+        .createHmac('sha256', secretKey)
+        .update(payloadString)
+        .digest('hex');
+
+    console.log(`[Webhook] Dispatching to ${webhookUrl} for ${contextLabel} ${intent.id}`);
+
+    fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'x-anonpay-signature': signature
+        },
+        body: payloadString
+    }).then(resp => {
+        console.log(`[Webhook] Response status: ${resp.status}`);
+    }).catch(err => {
+        console.error('[Webhook] Dispatch failed:', err.message);
+    });
+
+    return true;
+}
+
 function getProvableCredentials() {
     const apiKey = process.env.PROVABLE_API_KEY;
     const consumerId = process.env.PROVABLE_CONSUMER_ID || process.env.PROVABLE_CONSUMER_KEY;
@@ -651,7 +964,7 @@ app.get('/api/invoices', async (req, res) => {
         return res.status(500).json({ error: error.message });
     }
 
-    res.json(data);
+    res.json((data || []).map(normalizeInvoiceRecord));
 });
 
 app.get('/api/invoices/merchant/:hash', async (req, res) => {
@@ -677,7 +990,7 @@ app.get('/api/invoices/merchant/:hash', async (req, res) => {
         return res.status(500).json({ error: error.message });
     }
 
-    res.json(data);
+    res.json((data || []).map(normalizeInvoiceRecord));
 });
 
 app.get('/api/invoices/recent', async (req, res) => {
@@ -693,7 +1006,7 @@ app.get('/api/invoices/recent', async (req, res) => {
         return res.status(500).json({ error: error.message });
     }
 
-    res.json(data);
+    res.json((data || []).map(normalizeInvoiceRecord));
 });
 
 app.get('/api/invoice/:hash', async (req, res) => {
@@ -709,11 +1022,13 @@ app.get('/api/invoice/:hash', async (req, res) => {
         // console.error('Error fetching invoice:', error);
         return res.status(404).json({ error: 'Invoice not found' });
     }
-    if (data.is_burner && data.designated_address) {
-        data.merchant_address = data.designated_address;
+    const resolvedData = normalizeInvoiceRecord(await maybeResolveInvoiceId(data));
+
+    if (resolvedData.is_burner && resolvedData.designated_address) {
+        resolvedData.merchant_address = resolvedData.designated_address;
     }
 
-    res.json(data);
+    res.json(resolvedData);
 });
 
 
@@ -1137,40 +1452,8 @@ app.patch('/api/checkout/sessions/:id', async (req, res) => {
         }
 
         // 2. Dispatch Webhook if SETTLED and webhook_url exists
-        if (status === 'SETTLED' && intent.merchants && intent.merchants.encrypted_webhook_url) {
-            const secretKey = intent.merchants.encrypted_secret_key;
-            const webhookUrl = intent.merchants.encrypted_webhook_url;
-
-            const payload = {
-                id: intent.id,
-                amount: intent.amount,
-                token_type: intent.token_type,
-                status: intent.status,
-                tx_id: tx_id || null,
-                timestamp: new Date().toISOString()
-            };
-
-            const payloadString = JSON.stringify(payload);
-            const signature = crypto
-                .createHmac('sha256', secretKey)
-                .update(payloadString)
-                .digest('hex');
-
-            console.log(`[Webhook] Dispatching to ${webhookUrl} for session ${intent.id}`);
-
-            // Dispatch async (fire and forget)
-            fetch(webhookUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-anonpay-signature': signature
-                },
-                body: payloadString
-            }).then(resp => {
-                console.log(`[Webhook] Response status: ${resp.status}`);
-            }).catch(err => {
-                console.error(`[Webhook] Dispatch failed:`, err.message);
-            });
+        if (status === 'SETTLED') {
+            await dispatchMerchantWebhook(intent, tx_id || null, 'session');
         }
 
         res.json({ success: true, status: intent.status });
@@ -1202,7 +1485,7 @@ app.post('/api/invoices', async (req, res) => {
                 amount: amount !== undefined ? amount : null,
                 memo: memo || null,
                 expiry: expiry || null,
-                status: status || 'PENDING',
+                status: normalizeInvoiceStatus(status),
                 invoice_transaction_id,  // Invoice creation TX
                 salt: salt || null,  // Store salt for payment link generation
                 invoice_type: invoice_type !== undefined ? invoice_type : 0,  // 0 = Standard, 1 = Fundraising
@@ -1216,7 +1499,7 @@ app.post('/api/invoices', async (req, res) => {
             .single();
 
         if (error) throw error;
-        res.json(data);
+        res.json(normalizeInvoiceRecord(data));
 
     } catch (err) {
         console.error("Error creating invoice:", err);
@@ -1275,7 +1558,7 @@ app.patch('/api/invoices/:hash', async (req, res) => {
             updates.payment_tx_ids = Array.from(new Set([...currentIds, ...incomingIds]));
         }
 
-        if (status) updates.status = status;
+        if (status) updates.status = normalizeInvoiceStatus(status);
 
         const { data, error } = await supabase
             .from('invoices')
@@ -1295,11 +1578,11 @@ app.patch('/api/invoices/:hash', async (req, res) => {
         console.log(`   - Has New Payment?`, hasNewPayment);
 
         // LOGIC FIX: If there is a payment ID in the request, it IS a new payment event.
-        if (status === 'SETTLED' || payment_tx_ids) {
+        if (normalizeInvoiceStatus(status, current.status) === 'SETTLED' || payment_tx_ids) {
             console.log(`📢 Backend detected SETTLED event for hash: ${hash}, Status: ${status}, Merchant: ${data.merchant_address}`);
 
             // Auto-Sync SDK Checkouts: Use exact session_id if provided (for multi-pay safety)
-            if (status === 'SETTLED') {
+            if (normalizeInvoiceStatus(status, current.status) === 'SETTLED') {
                 try {
                     let intentIdToSync = session_id;
                     
@@ -1335,43 +1618,10 @@ app.patch('/api/invoices/:hash', async (req, res) => {
                             console.log(`✅ SDK Session ${intent.id} synced directly in DB.`);
                             
                             // 2. Dispatch Webhook
-                            if (intent.merchants && intent.merchants.encrypted_webhook_url) {
-                                try {
-                                    const secretKey = readMerchantStoredValue(intent.merchants.encrypted_secret_key);
-                                    const webhookUrl = readMerchantStoredValue(intent.merchants.encrypted_webhook_url);
-
-                                    const payload = {
-                                        id: intent.id,
-                                        amount: intent.amount,
-                                        token_type: intent.token_type,
-                                        status: intent.status,
-                                        tx_id: incomingIds[0] || null,
-                                        timestamp: new Date().toISOString()
-                                    };
-
-                                    const payloadString = JSON.stringify(payload);
-                                    const signature = crypto
-                                        .createHmac('sha256', secretKey)
-                                        .update(payloadString)
-                                        .digest('hex');
-
-                                    console.log(`[Webhook] Dispatching to ${webhookUrl} for auto-synced session ${intent.id}`);
-
-                                    fetch(webhookUrl, {
-                                        method: 'POST',
-                                        headers: {
-                                            'Content-Type': 'application/json',
-                                            'x-anonpay-signature': signature
-                                        },
-                                        body: payloadString
-                                    }).then(resp => {
-                                        console.log(`[Webhook] Response status: ${resp.status}`);
-                                    }).catch(err => {
-                                        console.error(`[Webhook] Dispatch failed:`, err.message);
-                                    });
-                                } catch (err) {
-                                    console.error("Webhook processing error:", err);
-                                }
+                            try {
+                                await dispatchMerchantWebhook(intent, incomingIds[0] || null, 'auto-synced session');
+                            } catch (err) {
+                                console.error("Webhook processing error:", err);
                             }
                         } else {
                             console.error("❌ Failed to update intent via Supabase auto-sync:", updateError);
@@ -1383,7 +1633,7 @@ app.patch('/api/invoices/:hash', async (req, res) => {
             }
         }
 
-        res.json(data);
+        res.json(normalizeInvoiceRecord(data));
 
     } catch (err) {
         console.error("Error updating invoice:", err);
@@ -1873,7 +2123,7 @@ async function startMidnightIndexer() {
                     .eq('tx_hash', tx.txHash)
                     .maybeSingle();
 
-                if (existing && existing.status === 'settled') {
+                if (existing && normalizeInvoiceStatus(existing.status) === 'SETTLED') {
                     processedTxCache.add(tx.txHash);
                     continue;
                 }
@@ -1887,8 +2137,10 @@ async function startMidnightIndexer() {
                 const { data: updated, error } = await supabase
                     .from('invoices')
                     .update({
-                        status: 'settled',
+                        status: 'SETTLED',
                         settled_at: new Date().toISOString(),
+                        block_settled: tx.blockHeight || null,
+                        payment_tx_ids: [tx.txHash],
                         tx_hash: tx.txHash
                     })
                     .eq('id', invoiceId)
@@ -1911,7 +2163,7 @@ async function startMidnightIndexer() {
                             .send({
                                 type: 'broadcast',
                                 event: 'invoice_status',
-                                payload: { status: 'settled', tx_hash: tx.txHash }
+                                payload: { status: 'SETTLED', tx_hash: tx.txHash }
                             });
                     } catch (broadcastErr) {
                         console.error(`[midnight-indexer] realtime broadcast failed:`, broadcastErr.message);
@@ -1924,5 +2176,3 @@ async function startMidnightIndexer() {
         }
     }, INDEXER_POLL_MS);
 }
-
-
