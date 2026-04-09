@@ -4,8 +4,14 @@ import wasm from 'vite-plugin-wasm'
 
 export default defineConfig({
     plugins: [react(), wasm()],
+    resolve: {
+        alias: {
+            buffer: 'buffer/',
+        },
+    },
     optimizeDeps: {
         exclude: ['@provablehq/wasm'],
+        include: ['buffer'],
     },
     server: {
         headers: {
