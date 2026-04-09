@@ -293,7 +293,7 @@ That matters. A privacy product should be held to a higher standard when it desc
 
 AnonPay is trying to solve a real problem: crypto payments are either too public to be comfortable for normal business use, or too awkward to fit into normal business workflows.
 
-The current version shows a believable path forward. It already supports private-oriented invoicing, checkout, merchant tooling, and a first version of selective disclosure after settlement. It is not yet the full protocol described in the earlier whitepaper, and this document no longer pretends otherwise.
+The current version shows a path forward. It already supports private-oriented invoicing, checkout, merchant tooling, and a first version of selective disclosure after settlement. It is not yet the full protocol described in the earlier whitepaper, and this document no longer pretends otherwise.
 
 ## In simple terms:
 
