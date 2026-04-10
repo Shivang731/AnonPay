@@ -87,9 +87,3 @@ AnonPay/
 └── supabase_sdk_schema.sql
 ```
 
-## Notes
-
-- `node_modules/` directories are omitted because they are generated dependencies.
-- `frontend/dist/` is omitted because it is a generated build output.
-- `backend/.env` and `frontend/.env` are intentionally not documented as tracked project files; use the corresponding `.env.example` templates.
-- `contracts/build/` and `contracts/managed/` are generated from the Midnight contract toolchain but are currently present in the repository.
