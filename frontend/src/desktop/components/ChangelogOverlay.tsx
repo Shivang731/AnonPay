@@ -189,13 +189,15 @@ export const ChangelogOverlay: React.FC = () => {
                                 glowClass="bg-orange-400/35"
                                 title="Reveal Only What Matters"
                             >
-                                <p>
-                                    Privacy does not have to mean opacity. The current MVP includes selective disclosure links for settled invoices so merchants can share only chosen facts.
-                                </p>
-                                <p>
-                                    Richer trust-minimized verifier semantics remain roadmap work, but the product direction is already visible in the live flow.
-                                </p>
-                            </SectionCard>
+                            <p>
+                               Privacy does not have to mean opacity. The current MVP includes disclosure links for settled invoices so merchants can share selected facts.
+                           </p>
+                           <p>
+                               A stronger proof-native verifier experience remains roadmap work, but the product direction is already visible in the app.
+                          </p>
+                          </SectionCard>
+
+
 
                             <SectionCard
                                 index={2}
@@ -255,7 +257,7 @@ export const ChangelogOverlay: React.FC = () => {
                                 accentClass="bg-cyan-400/10 border-cyan-300/20 text-cyan-200"
                                 icon={<Radio className="w-5 h-5" />}
                                 glowClass="bg-cyan-400/20"
-                                title="Create, Share, Verify"
+                                title="Create, Share, Track"
                             >
                                 <p>
                                     Connect your wallet, create an invoice, share the payment flow, and let the app carry the user through checkout and settlement tracking.
